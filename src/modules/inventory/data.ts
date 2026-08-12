@@ -1,0 +1,91 @@
+import type { CharacterClassId } from "@/modules/character/types";
+import type { InventoryItem } from "./types";
+
+export const STARTER_INVENTORY: Record<CharacterClassId, InventoryItem[]> = {
+  "crane": [
+    {
+      id: "old-bamboo-bow",
+      name: "Cung Trúc Cũ",
+      description: "Cây cung tre theo chân đệ tử Bạch Hạc Môn từ ngày nhập môn.",
+      rarity: "common",
+      icon: "Target",
+      quantity: 1,
+      slot: "weapon",
+      statBonus: { physicalDamage: 6 },
+    },
+    {
+      id: "poison-arrow-pouch",
+      name: "Túi Tên Tẩm Độc",
+      description: "20 mũi tên đã tẩm độc dược nhẹ, đủ dùng cho vài trận đầu.",
+      rarity: "common",
+      icon: "Feather",
+      quantity: 20,
+    },
+    {
+      id: "minor-healing-pill",
+      name: "Tiểu Hoàn Dược",
+      description: "Hồi một phần Máu khi sử dụng.",
+      rarity: "common",
+      icon: "FlaskConical",
+      quantity: 3,
+    },
+  ],
+  "dragon": [
+    {
+      id: "seven-star-staff",
+      name: "Trượng Thất Tinh",
+      description: "Pháp trượng khắc bảy vì sao, giúp dẫn khí thi triển thuật.",
+      rarity: "common",
+      icon: "Wand",
+      quantity: 1,
+      slot: "weapon",
+      statBonus: { magicDamage: 6 },
+    },
+    {
+      id: "heart-sutra-scroll",
+      name: "Phù Lục Tâm Kinh",
+      description: "Bản sao tâm kinh nhập môn của Thanh Long Môn.",
+      rarity: "common",
+      icon: "ScrollText",
+      quantity: 1,
+    },
+    {
+      id: "qi-gathering-pill",
+      name: "Tụ Khí Đan",
+      description: "Hồi một phần Năng Lượng khi sử dụng.",
+      rarity: "common",
+      icon: "FlaskConical",
+      quantity: 3,
+    },
+  ],
+  "tiger": [
+    {
+      id: "iron-fist-gauntlets",
+      name: "Song Quyền Sắt",
+      description: "Đôi găng sắt rèn từ quặng núi Hổ Nha, nặng nhưng chắc chắn.",
+      rarity: "common",
+      icon: "Swords",
+      quantity: 1,
+      slot: "weapon",
+      statBonus: { physicalDamage: 6 },
+    },
+    {
+      id: "old-leather-armor",
+      name: "Giáp Da Cũ",
+      description: "Áo giáp da thô sơ, phòng ngự cơ bản cho đệ tử mới.",
+      rarity: "common",
+      icon: "ShieldPlus",
+      quantity: 1,
+      slot: "armor",
+      statBonus: { armor: 8 },
+    },
+    {
+      id: "minor-healing-pill",
+      name: "Tiểu Hoàn Dược",
+      description: "Hồi một phần Máu khi sử dụng.",
+      rarity: "common",
+      icon: "FlaskConical",
+      quantity: 3,
+    },
+  ],
+};
