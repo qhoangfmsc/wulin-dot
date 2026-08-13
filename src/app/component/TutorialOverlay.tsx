@@ -6,12 +6,12 @@ import { useGSAP } from "@gsap/react";
 
 gsap.registerPlugin(useGSAP);
 
-const AUTO_DISMISS_MS = 6000;
+const AUTO_DISMISS_MS = 4000;
 
 function KeyCap({ label, invisible }: { label: string; invisible?: boolean }) {
   return (
     <div
-      className={`flex h-8 w-8 items-center justify-center rounded-md border font-mono text-sm font-bold sm:h-9 sm:w-9 sm:text-base ${
+      className={`flex h-12 w-12 items-center justify-center rounded-md border font-mono text-lg font-bold ${
         invisible ? "invisible" : ""
       }`}
       style={{ borderColor: "#7a5230aa", background: "linear-gradient(160deg, #4a3820, #2c2013)", color: "#f2c66d" }}
@@ -36,8 +36,9 @@ function KeyCross({ up, left, down, right }: { up: string; left: string; down: s
 
 /** Bigger movement callout shown once on a map's first visit (per-map, see
  * `MapModule.showTutorial`) — shows both control schemes (WASD and arrow
- * keys) explicitly instead of a single text line. Fades out on its own, or
- * dismisses on tap anywhere on the panel. */
+ * keys) explicitly instead of a single text line. Auto-dismisses on its own
+ * after `AUTO_DISMISS_MS` — doesn't wait on the player to tap it away,
+ * though tapping anywhere on the panel does still dismiss it early. */
 export function TutorialOverlay({ onDismiss }: { onDismiss: () => void }) {
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -56,7 +57,7 @@ export function TutorialOverlay({ onDismiss }: { onDismiss: () => void }) {
   }, []);
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-32 z-20 flex justify-center">
+    <div className="pointer-events-none absolute inset-x-0 bottom-4 z-20 flex justify-center">
       <div
         ref={panelRef}
         onClick={handleDismiss}
@@ -66,10 +67,10 @@ export function TutorialOverlay({ onDismiss }: { onDismiss: () => void }) {
           background: "linear-gradient(160deg, rgba(58,44,26,0.94), rgba(36,26,16,0.94))",
         }}
       >
-        <p className="font-title text-base font-bold uppercase tracking-[0.2em] text-[#f2c66d] sm:text-lg">Move</p>
+        <p className="text-[18px] font-bold uppercase tracking-[0.2em] text-[#f2c66d]">Di Chuyển</p>
         <div className="flex items-center gap-6">
           <KeyCross up="W" left="A" down="S" right="D" />
-          <span className="text-sm text-[#a0855c]">or</span>
+          <span className="text-lg text-[#a0855c]">hoặc</span>
           <KeyCross up="↑" left="←" down="↓" right="→" />
         </div>
       </div>

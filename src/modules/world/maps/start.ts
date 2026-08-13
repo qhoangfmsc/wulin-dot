@@ -7,42 +7,81 @@ import type { MapModule } from "./types";
 export const startMap: MapModule = {
   id: "start",
   grid: [
-    [0, "X", 1, "?"],
-    [0, 1, 1, 1],
-    [0, "S", 0, "B"],
+    ["X", 1, "?"],
+    [0, 0, 1],
+    [0, "B", "S"],
   ],
   obstaclesByCell: {
-    "0-1": [
-      { xFrac: 0.35, yFrac: 0.55, width: 70, height: 70 },
-      { xFrac: 0.62, yFrac: 0.72, width: 90, height: 60 },
+    "0-0": [
+      { xFrac: 0.35, yFrac: 0.55, width: 80, height: 70, spriteSrc: "/subject/rock.png" },
+      { xFrac: 0.62, yFrac: 0.72, width: 110, height: 100, spriteSrc: "/subject/big_bush.png" },
+      { xFrac: 0.78, yFrac: 0.4, width: 60, height: 55, spriteSrc: "/subject/small_bush.png" },
     ],
   },
   subjectsByCell: {
-    "0-1": [
+    "0-0": [
       {
-        xFrac: 0.5,
-        yFrac: 0.18,
-        width: 260,
-        height: 240,
+        xFrac: 0.15,
+        yFrac: 0.25,
+        width: 400,
+        height: 400,
         spriteSrc: "/subject/company.png",
         dialogue: [
           {
             side: "right",
             name: "???",
             portraitSrc: "/character/ingame/turtle.png",
-            text: "Another soul, spat out of a burning future.",
+            text: "Lại thêm một người nữa lạc tới đây, từ một thế giới vừa sụp đổ.",
           },
           {
             side: "right",
             name: "???",
             portraitSrc: "/character/ingame/turtle.png",
-            text: "The Wulin does not care where you came from — only whether you can survive it.",
+            text: "Võ Lâm không quan tâm ngươi từ đâu tới. Chỉ quan tâm ngươi có sống nổi hay không.",
           },
-          { side: "left", name: "You", portraitSrc: "/character/ingame/dog.png", text: "..." },
+          { side: "left", name: "Bạn", portraitSrc: "/character/ingame/dog.png", text: "..." },
         ],
+      },
+    ],
+  },
+  monstersByCell: {
+    "0-1": [
+      {
+        xFrac: 0.4,
+        yFrac: 0.4,
+        spriteSrc: "/character/ingame/zombie.png",
+        hp: 60,
+        damage: 8,
+        moveSpeed: 90,
+        aggroRadius: 220,
+        attackRadius: 50,
+        attackIntervalMs: 1000,
+        expReward: 20,
+      },
+      {
+        xFrac: 0.65,
+        yFrac: 0.65,
+        spriteSrc: "/character/ingame/zombie.png",
+        hp: 60,
+        damage: 8,
+        moveSpeed: 90,
+        aggroRadius: 220,
+        attackRadius: 50,
+        attackIntervalMs: 1000,
+        expReward: 20,
       },
     ],
   },
   music: ["/music/background/start.mp3"],
   showTutorial: true,
+  roomStyles: {
+    empty: { floorSrc: "/ground/dirt.png", wallSrc: "/ground/log_wall.png" },
+    normal: { floorSrc: "/ground/dirt.png", wallSrc: "/ground/log_wall.png" },
+    unknown: { floorSrc: "/ground/dirt.png", wallSrc: "/ground/log_wall.png" },
+    special: { floorSrc: "/ground/grass.png", wallSrc: "/ground/log_wall.png", tint: 0xa855f7 },
+    boss: { floorSrc: "/ground/grass.png", wallSrc: "/ground/lava_wall.png", tint: 0xef4444 },
+  },
+  floorOverridesByCell: {
+    "0-0": "/ground/dirt.png",
+  },
 };

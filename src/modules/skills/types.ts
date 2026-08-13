@@ -1,12 +1,12 @@
-export type SkillNodeType = "passive" | "active";
-
+/** No real gameplay effect from learning a skill yet (see `data.ts`) — this
+ * shape only drives the tree layout + the level/prerequisite gate. */
 export interface SkillNode {
   id: string;
   name: string;
   description: string;
-  type: SkillNodeType;
-  tier: 0 | 1 | 2 | 3;
-  icon: string; // lucide-react icon name
-  requires: string[]; // node ids that must already be unlocked
-  cost: number; // skill points required (tier 0 is always free/auto-unlocked)
+  requiredLevel: number;
+  /** 0-indexed tier/column — `SkillsPanel` lays out 1 row per tier, higher
+   * tiers below, gated behind their `prerequisiteIds`. */
+  tier: number;
+  prerequisiteIds: string[];
 }

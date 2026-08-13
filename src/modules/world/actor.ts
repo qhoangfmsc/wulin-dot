@@ -22,6 +22,10 @@ export interface ActorOptions {
   depth: number;
   /** Hop height as a fraction of displaySize. */
   hopHeightRatio?: number;
+  /** Radius (px) of a faint attack-range ring drawn under the actor — omit
+   * for no ring. Lives inside the container so it always follows the actor
+   * without any per-frame position syncing. */
+  rangeRadius?: number;
 }
 
 /** Shared "living sprite" for both the player and monsters: a container +
@@ -45,6 +49,10 @@ export class Actor {
 
   constructor(scene: Phaser.Scene, opts: ActorOptions) {
     const hasTexture = Boolean(opts.textureKey && scene.textures.exists(opts.textureKey));
+    const rangeRing = opts.rangeRadius
+      ? scene.add.circle(0, 0, opts.rangeRadius, 0xf2c66d, 0.08).setStrokeStyle(2, 0xf2c66d, 0.35)
+      : null;
+    const baseChildren: Phaser.GameObjects.GameObject[] = rangeRing ? [rangeRing] : [];
     this.shadow = scene.add.ellipse(
       0,
       opts.displaySize * 0.32,
@@ -64,7 +72,7 @@ export class Actor {
       this.baseScaleY = image.scaleY;
       this.image = image;
       this.fallbackBody = null;
-      this.container = scene.add.container(opts.x, opts.y, [this.shadow, image]);
+      this.container = scene.add.container(opts.x, opts.y, [...baseChildren, this.shadow, image]);
     } else {
       const r = opts.displaySize / 4;
       const body = scene.add.circle(0, 0, r, opts.fallbackColor).setStrokeStyle(2, 0xffffff, 0.9);
@@ -74,7 +82,7 @@ export class Actor {
       this.image = null;
       this.baseScaleX = 1;
       this.baseScaleY = 1;
-      this.container = scene.add.container(opts.x, opts.y, [this.shadow, fallback]);
+      this.container = scene.add.container(opts.x, opts.y, [...baseChildren, this.shadow, fallback]);
     }
     this.container.setDepth(opts.depth);
   }

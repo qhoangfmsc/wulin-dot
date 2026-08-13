@@ -1,72 +1,84 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { StatBlock } from "@/modules/stats/types";
-import type { EquipSlot, InventoryItem } from "./types";
+import type { InventoryItem } from "./types";
 
-type EquippedState = Record<EquipSlot, string | null>;
-
-const EMPTY_EQUIPPED: EquippedState = { weapon: null, armor: null, accessory: null };
-
-interface InventoryStoreState {
+interface InventoryState {
   items: InventoryItem[];
-  equipped: EquippedState;
-  setStarterItems: (items: InventoryItem[]) => void;
-  addItem: (item: InventoryItem) => void;
-  removeItem: (id: string, amount?: number) => void;
-  clearInventory: () => void;
-  equipItem: (item: InventoryItem) => void;
-  unequipSlot: (slot: EquipSlot) => void;
+  equippedItemId: string | null;
+  /** In-world currency — "Bạc". */
+  currency: number;
+  /** Spent at the Summon Store (`modules/summon/`) to roll a random item —
+   * see `spendSummonCard`. */
+  summonCards: number;
 }
 
-export const useInventoryStore = create<InventoryStoreState>()(
+/** Weapons the player has picked up + which one (if any) is equipped —
+ * persisted the same way `mapProgress.ts` is, so it survives a refresh.
+ * `mapScene.ts`/`Monster`/`modules/summon/store.ts` call the action
+ * functions below directly via `getState()`/`setState()`, same bridge
+ * pattern as `liveHud.ts`. */
+export const useInventoryStore = create<InventoryState>()(
   persist(
-    (set, get) => ({
+    (): InventoryState => ({
       items: [],
-      equipped: EMPTY_EQUIPPED,
-      setStarterItems: (items) => set({ items, equipped: EMPTY_EQUIPPED }),
-      addItem: (item) => {
-        const existing = get().items.find((i) => i.id === item.id);
-        if (existing) {
-          set({
-            items: get().items.map((i) =>
-              i.id === item.id ? { ...i, quantity: i.quantity + item.quantity } : i,
-            ),
-          });
-        } else {
-          set({ items: [...get().items, item] });
-        }
-      },
-      removeItem: (id, amount = 1) => {
-        set({
-          items: get()
-            .items.map((i) => (i.id === id ? { ...i, quantity: i.quantity - amount } : i))
-            .filter((i) => i.quantity > 0),
-        });
-      },
-      clearInventory: () => set({ items: [], equipped: EMPTY_EQUIPPED }),
-      equipItem: (item) => {
-        if (!item.slot) return;
-        set({ equipped: { ...get().equipped, [item.slot]: item.id } });
-      },
-      unequipSlot: (slot) => set({ equipped: { ...get().equipped, [slot]: null } }),
+      equippedItemId: null,
+      currency: 0,
+      summonCards: 0,
     }),
     { name: "wulin-inventory" },
   ),
 );
 
-/** Sums the `statBonus` of every currently-equipped item into one partial
- * stat block — used to compute the character's real in-run stats on top of
- * their rolled base stats (see `HudShell`). Not a hook: takes the store
- * state directly so it can be called from both React and plain code. */
-export function getEquipmentBonus(state: Pick<InventoryStoreState, "items" | "equipped">): Partial<StatBlock> {
-  const bonus: Partial<StatBlock> = {};
-  for (const itemId of Object.values(state.equipped)) {
-    if (!itemId) continue;
-    const item = state.items.find((i) => i.id === itemId);
-    if (!item?.statBonus) continue;
-    for (const [stat, amount] of Object.entries(item.statBonus) as [keyof StatBlock, number][]) {
-      bonus[stat] = (bonus[stat] ?? 0) + amount;
-    }
+export function addItem(item: InventoryItem) {
+  useInventoryStore.setState((s) => ({ items: [...s.items, item] }));
+}
+
+/** `null` unequips (falls back to the character's default weapon look). */
+export function equipItem(id: string | null) {
+  useInventoryStore.setState({ equippedItemId: id });
+}
+
+export function addCurrency(amount: number) {
+  useInventoryStore.setState((s) => ({ currency: s.currency + amount }));
+}
+
+export function addSummonCard(amount: number) {
+  useInventoryStore.setState((s) => ({ summonCards: s.summonCards + amount }));
+}
+
+/** Spends 1 card if any are left — returns whether it actually spent one, so
+ * the caller (`modules/summon/store.ts`) knows whether to roll an item. */
+export function spendSummonCard(): boolean {
+  const { summonCards } = useInventoryStore.getState();
+  if (summonCards <= 0) return false;
+  useInventoryStore.setState((s) => ({ summonCards: s.summonCards - 1 }));
+  return true;
+}
+
+const CURRENCY_DROP_CHANCE = 0.5;
+const SUMMON_CARD_DROP_CHANCE = 0.15;
+const CURRENCY_MIN = 5;
+const CURRENCY_MAX = 15;
+
+/** Rolled once per monster kill (not per hit) — 50% chance of Bạc (flat
+ * 5–15, not level-scaled), independently 15% chance of a Summon Card. No
+ * more direct item drops here — items only come from summoning
+ * (`modules/summon/`, see `SUMMON_CARD_DROP_CHANCE`). Applies the drop
+ * immediately and reports what dropped so the caller can show floating
+ * text. */
+export function rollDrop(): { currency?: number; summonCard?: boolean } {
+  const result: { currency?: number; summonCard?: boolean } = {};
+
+  if (Math.random() < CURRENCY_DROP_CHANCE) {
+    const amount = Math.floor(CURRENCY_MIN + Math.random() * (CURRENCY_MAX - CURRENCY_MIN + 1));
+    addCurrency(amount);
+    result.currency = amount;
   }
-  return bonus;
+
+  if (Math.random() < SUMMON_CARD_DROP_CHANCE) {
+    addSummonCard(1);
+    result.summonCard = true;
+  }
+
+  return result;
 }

@@ -1,19 +1,38 @@
 import Phaser from "phaser";
 import { Actor } from "./actor";
+import { Monster, type MonsterSpawnConfig } from "./monster";
+import { spawnDamageText } from "./damageText";
+import { fireAttack } from "./attack";
+import { addRage, damagePlayer, healPlayer, respawnPlayer, useLiveHudStore } from "./liveHud";
+import { gainExp } from "@/modules/character/store";
+import { rollDrop } from "@/modules/inventory/store";
 
 const DEFAULT_ROOM_SCALE = 1.5; // each room is ~1.5x the viewport by default, so there's real room to pan
 const INSET = 20;
-const WALL_THICKNESS = 56;
+// Wall art is loaded at exactly this width (a value Next's image optimizer
+// actually serves — its `imageSizes`/`deviceSizes` are a fixed allow-list:
+// 16/32/48/64/96/128/...) and the wall TileSprite is drawn at this same
+// thickness, so one texture repeat exactly fills the box. They MUST stay
+// equal — mismatching them (e.g. loading at 64 but drawing a 56px-thick
+// wall) makes the TileSprite show a cropped sliver of each repeat instead
+// of the intended tiled pattern, since TileSprite tiles at the texture's
+// native loaded pixel size, not the box size.
+const WALL_THICKNESS = 64;
 const EDGE_TRIGGER_MARGIN = 40;
 const SPAWN_OFFSET = 70; // how far from the entry edge the player appears after linking
 const PLAYER_DISPLAY_WIDTH = 56;
 const MOVE_SPEED = 190;
+const ATTACK_RANGE_RADIUS = 300; // player's auto-attack range, see update()
+const PLAYER_ATTACK_INTERVAL_MS = 700;
+const RAGE_PER_HIT = 10;
+const RAGE_DECAY_DELAY_MS = 5000; // no attack for this long -> rage starts draining
+// Rage drains in whole-number ticks (not a fractional per-frame amount) so
+// the value on screen is always a clean int — lose 1 point every tick.
+const RAGE_DECAY_TICK_MS = 50; // 1 point / 50ms = 20 points/s
+const HP_REGEN_TICK_MS = 1000; // 1 hp / s while alive and below max
+const RESPAWN_INVULN_MS = 1200;
 const OBSTACLE_PADDING = 18; // roughly the player's collision radius
 const SPRITE_LOAD_WIDTH = 256;
-// Nearest width Next's default image optimizer will actually serve (its
-// `imageSizes`/`deviceSizes` are a fixed allow-list — 16/32/48/64/96/128/...
-// — arbitrary widths like the literal WALL_THICKNESS get rejected).
-const WALL_TEXTURE_LOAD_WIDTH = 64;
 
 // Camera pulls back a bit near any edge — gives a peek of "there's more
 // room here, and something beyond it" instead of a hard, static crop.
@@ -61,6 +80,14 @@ function optimizedSpriteUrl(src: string, width: number = SPRITE_LOAD_WIDTH): str
 interface MapSceneOptions {
   floorSrc: string;
   spriteUrl: string;
+  /** Thrown-projectile art for the player's auto-attack — see
+   * `./attack.ts`. Comes from the equipped weapon (or the character's
+   * default) via `getEffectiveStats()`. */
+  weaponSpriteSrc: string;
+  /** The player's current effective attack stat (base + level points +
+   * weapon bonus) — see `modules/character/store.ts`'s `getEffectiveStats`.
+   * Not a local constant anymore since it depends on player progression. */
+  playerAttackDamage: number;
   walls: WallConfig;
   /** Wall art for whichever edges are blocked (e.g. `/ground/log_wall.png`,
    * `/ground/lava_wall.png`) — only rendered on edges where `walls[edge]`
@@ -71,6 +98,8 @@ interface MapSceneOptions {
   tint?: number;
   /** Static blockers scattered around the room — empty array is fine. */
   obstacles?: ObstacleConfig[];
+  /** Hostile mobs placed in this room — empty array is fine. */
+  monsters?: MonsterSpawnConfig[];
   /** Room size = viewport × this multiplier. Defaults to 1.5 — expose it so
    * a room can ask for something bigger/smaller later without touching
    * this file. */
@@ -83,8 +112,8 @@ interface MapSceneOptions {
 }
 
 /** One walk-around room of the grid-based world map (see `mapGrid.ts` /
- * `MapScreen.tsx`) — no combat, no monsters, just movement + room-to-room
- * links + static obstacles.
+ * `MapScreen.tsx`) — movement + room-to-room links + static obstacles, plus
+ * monsters (`Monster`, see `./monster.ts`) that chase and fight back.
  *
  * Room size is `roomScale` × the actual canvas size, computed fresh each
  * time from `this.scale.width/height` — bigger than the viewport on purpose
@@ -97,10 +126,13 @@ interface MapSceneOptions {
 export function createMapScene({
   floorSrc,
   spriteUrl,
+  weaponSpriteSrc,
+  playerAttackDamage,
   walls,
   wallSrc,
   tint,
   obstacles = [],
+  monsters: monsterConfigs = [],
   roomScale = DEFAULT_ROOM_SCALE,
   spawnAt,
   onReachEdge,
@@ -123,6 +155,11 @@ export function createMapScene({
     private playMinY = 0;
     private playMaxY = 0;
     private obstacleRects: ObstacleRect[] = [];
+    private monsters: Monster[] = [];
+    private lastPlayerAttackAt = -Infinity;
+    private lastRageDecayTickAt = -Infinity;
+    private lastHpRegenTickAt = -Infinity;
+    private invulnerableUntil = 0;
 
     constructor() {
       super("map-scene");
@@ -131,14 +168,13 @@ export function createMapScene({
     preload() {
       this.load.image("room-floor", optimizedSpriteUrl(floorSrc, 640));
       this.load.image("room-player", optimizedSpriteUrl(spriteUrl));
-      // Loaded near WALL_THICKNESS (square) — these are seamless tileable
-      // textures, not pre-cut strips, so the TileSprite tiles them ~1:1 with
-      // the rendered wall thickness. Loading at some unrelated fixed width
-      // (e.g. 256) made the TileSprite show only a cropped sliver of the
-      // texture instead of the intended tiled pattern.
-      if (Object.values(walls).some(Boolean)) this.load.image("room-wall", optimizedSpriteUrl(wallSrc, WALL_TEXTURE_LOAD_WIDTH));
+      this.load.image("weapon", optimizedSpriteUrl(weaponSpriteSrc, 128));
+      if (Object.values(walls).some(Boolean)) this.load.image("room-wall", optimizedSpriteUrl(wallSrc, WALL_THICKNESS));
       obstacles.forEach((o, i) => {
         if (o.spriteSrc) this.load.image(`obstacle-${i}`, optimizedSpriteUrl(o.spriteSrc, 256));
+      });
+      monsterConfigs.forEach((m, i) => {
+        this.load.image(`monster-${i}`, optimizedSpriteUrl(m.spriteSrc, 256));
       });
     }
 
@@ -192,6 +228,12 @@ export function createMapScene({
         return { left: x - o.width / 2, right: x + o.width / 2, top: y - o.height / 2, bottom: y + o.height / 2 };
       });
 
+      this.monsters = monsterConfigs.map((config, i) => {
+        const key = `monster-${i}`;
+        const textureKey = this.textures.exists(key) ? key : null;
+        return new Monster(this, config, config.xFrac * roomWidth, config.yFrac * roomHeight, 8, textureKey);
+      });
+
       let startX = roomWidth / 2;
       let startY = roomHeight / 2;
       if (spawnAt === "left") startX = this.playMinX + SPAWN_OFFSET;
@@ -206,6 +248,7 @@ export function createMapScene({
         displaySize: PLAYER_DISPLAY_WIDTH,
         fallbackColor: 0xf59e0b,
         depth: 10,
+        rangeRadius: ATTACK_RANGE_RADIUS,
       });
       this.cameras.main.startFollow(this.playerActor.container, true, 0.15, 0.15);
       this.cameras.main.setZoom(ZOOM_CENTER);
@@ -230,6 +273,85 @@ export function createMapScene({
           y > r.top - OBSTACLE_PADDING &&
           y < r.bottom + OBSTACLE_PADDING,
       );
+    }
+
+    /** Orchestrates the fight — all AI/combat decisions live on `Monster`
+     * itself (see `./monster.ts`); this just calls its methods and reacts
+     * to what they report back. */
+    private updateCombat(dt: number, now: number) {
+      const hud = useLiveHudStore.getState();
+      if (hud.hp > 0 && hud.hp < hud.maxHp && now - this.lastHpRegenTickAt >= HP_REGEN_TICK_MS) {
+        this.lastHpRegenTickAt = now;
+        healPlayer(1);
+      }
+
+      for (const monster of this.monsters) {
+        if (!monster.isAlive) continue;
+        monster.update(dt, this.playerActor.x, this.playerActor.y);
+        if (now >= this.invulnerableUntil && monster.tryAttack(now, this.playerActor.x, this.playerActor.y)) {
+          damagePlayer(monster.config.damage);
+          spawnDamageText(this, this.playerActor.x, this.playerActor.y, `-${monster.config.damage}`, "#ef4444");
+          this.handlePossibleDeath(now);
+        }
+      }
+
+      const target = this.findNearestAliveMonsterInRange();
+      if (target && now - this.lastPlayerAttackAt >= PLAYER_ATTACK_INTERVAL_MS) {
+        this.lastPlayerAttackAt = now;
+        addRage(RAGE_PER_HIT);
+        fireAttack(this, {
+          fromX: this.playerActor.x,
+          fromY: this.playerActor.y,
+          toX: target.x,
+          toY: target.y,
+          weaponTextureKey: this.textures.exists("weapon") ? "weapon" : null,
+          fallbackColor: 0xf2c66d,
+          damage: playerAttackDamage,
+          onLand: (dmg) => {
+            if (!target.isAlive) return; // died to something else, or room changed, while the throw was in flight
+            const killed = target.takeDamage(this, dmg);
+            if (killed) {
+              gainExp(target.config.expReward);
+              const drop = rollDrop();
+              if (drop.currency) spawnDamageText(this, target.x, target.y - 20, `+${drop.currency} Bạc`, "#f2c66d");
+              if (drop.summonCard) spawnDamageText(this, target.x, target.y - 40, "+1 Thẻ Triệu Hồi", "#a855f7");
+            }
+          },
+        });
+      } else if (
+        now - this.lastPlayerAttackAt > RAGE_DECAY_DELAY_MS &&
+        now - this.lastRageDecayTickAt >= RAGE_DECAY_TICK_MS &&
+        useLiveHudStore.getState().rage > 0
+      ) {
+        this.lastRageDecayTickAt = now;
+        addRage(-1);
+      }
+
+      this.monsters = this.monsters.filter((m) => m.isAlive);
+    }
+
+    private findNearestAliveMonsterInRange(): Monster | null {
+      let nearest: Monster | null = null;
+      let nearestDist = ATTACK_RANGE_RADIUS;
+      for (const monster of this.monsters) {
+        if (!monster.isAlive) continue;
+        const dist = Phaser.Math.Distance.Between(this.playerActor.x, this.playerActor.y, monster.x, monster.y);
+        if (dist <= nearestDist) {
+          nearest = monster;
+          nearestDist = dist;
+        }
+      }
+      return nearest;
+    }
+
+    /** Respawns at the room's center with full HP and a brief invulnerable
+     * window — the only place player `hp` is read to decide this. */
+    private handlePossibleDeath(now: number) {
+      if (now < this.invulnerableUntil) return;
+      if (useLiveHudStore.getState().hp > 0) return;
+      this.playerActor.setPosition(this.playMinX + (this.playMaxX - this.playMinX) / 2, this.playMinY + (this.playMaxY - this.playMinY) / 2);
+      respawnPlayer();
+      this.invulnerableUntil = now + RESPAWN_INVULN_MS;
     }
 
     update(_time: number, delta: number) {
@@ -259,6 +381,7 @@ export function createMapScene({
         moveAngle = Math.atan2(vy, vx);
       }
       this.playerActor.update(dt, moveAngle);
+      this.updateCombat(dt, this.time.now);
 
       const nearestEdgeDist = Math.min(
         this.playerActor.x - this.playMinX,

@@ -1,56 +1,25 @@
-import type { CharacterClassConfig } from "./types";
+import type { CharacterConfig, CharacterId } from "./types";
 
-export const CHARACTER_CLASSES: CharacterClassConfig[] = [
-  {
-    id: "crane",
-    sectName: "Bạch Hạc Môn",
-    title: "Bạch Hạc Xạ Ảnh",
-    role: "Cung Thủ",
-    animal: "Hạc",
-    tagline: "Một mũi tên, một sinh mệnh.",
-    description:
-      "Đệ tử Bạch Hạc Môn luyện thân pháp theo dáng hạc bay, ẩn mình trong sương rồi ra tay đoạt mạng từ xa. Tên của họ luôn tẩm độc dược bí truyền — trúng tên, chưa chắc chết ngay, nhưng chắc chắn không sống nổi tới canh hai.",
-    weapon: "Cung Trúc",
-    color: "#d4d4d8",
-    accentColor: "#a1a1aa",
-    coverImage: "/character/card/crane.png",
-    inGameSprite: "/character/ingame/crane.png",
-    inGameSublimation: "/character/sublimation/crane.png",
-  },
-  {
-    id: "dragon",
-    sectName: "Thanh Long Môn",
-    title: "Thanh Long Pháp Sư",
-    role: "Pháp Sư",
-    animal: "Rồng Xanh",
-    tagline: "Nội tức luân chuyển, trời đất đổi màu.",
-    description:
-      "Thanh Long Môn tu luyện nội công thượng thừa, mượn linh khí trời đất hóa thành chưởng lực băng hỏa. Đệ tử môn phái này ít khi giao đấu tay đôi, họ để chân khí và pháp thuật thay lời phân định thắng thua.",
-    weapon: "Pháp Trượng",
-    color: "#22d3ee",
-    accentColor: "#6366f1",
-    coverImage: "/character/card/dragon.png",
-    inGameSprite: "/character/ingame/dragon.png",
-    inGameSublimation: "/character/sublimation/dragon.png",
-  },
-  {
-    id: "tiger",
-    sectName: "Cuồng Hổ Môn",
-    title: "Cuồng Hổ Chiến Tướng",
-    role: "Chiến Binh",
-    animal: "Hổ",
-    tagline: "Một thân thiết giáp, vạn dặm xông pha.",
-    description:
-      "Cuồng Hổ Môn trấn tại vùng biên ải, đệ tử luyện ngoại công cương mãnh, da thịt tựa sắt thép. Họ không né đòn — họ đứng thẳng, hứng chịu, rồi phản đòn gấp mười lần đối phương vừa tung ra.",
-    weapon: "Song Quyền",
-    color: "#fb923c",
-    accentColor: "#b45309",
-    coverImage: "/character/card/tiger.png",
-    inGameSprite: "/character/ingame/tiger.png",
-    inGameSublimation: "/character/sublimation/tiger.png",
-  },
-];
+/** Real, permanent playable characters — add an entry here (+ art in
+ * `public/character/ingame/`) to make a new one selectable, no other code
+ * changes needed. Each has its own `baseHp`/`baseAttack` (flavor: tanky
+ * animals hit softer but soak more, glass-cannon ones hit harder but soak
+ * less) — level-up points and equipped weapon bonus stack on TOP of
+ * whichever character is currently active, see `store.ts`'s
+ * `getEffectiveStats()`. `zombie.png`/`deer_injured.png` in that same
+ * folder are deliberately NOT here — `zombie` is monster art (see
+ * `modules/world/maps`), `deer_injured` is a hurt-state variant of `deer`,
+ * neither is a distinct playable character. */
+export const CHARACTERS: Record<CharacterId, CharacterConfig> = {
+  dog: { id: "dog", name: "Cẩu Nhi", spriteSrc: "/character/ingame/dog.png", defaultWeaponId: "dress_shoe", baseHp: 100, baseAttack: 12 },
+  turtle: { id: "turtle", name: "Quy Nhi", spriteSrc: "/character/ingame/turtle.png", defaultWeaponId: "dress_shoe", baseHp: 160, baseAttack: 6 },
+  deer: { id: "deer", name: "Lộc Nhi", spriteSrc: "/character/ingame/deer.png", defaultWeaponId: "dress_shoe", baseHp: 90, baseAttack: 13 },
+  tiger: { id: "tiger", name: "Hổ Nhi", spriteSrc: "/character/ingame/tiger.png", defaultWeaponId: "dress_shoe", baseHp: 95, baseAttack: 18 },
+  dragon: { id: "dragon", name: "Long Nhi", spriteSrc: "/character/ingame/dragon.png", defaultWeaponId: "dress_shoe", baseHp: 120, baseAttack: 16 },
+  panda: { id: "panda", name: "Gấu Trúc", spriteSrc: "/character/ingame/panda.png", defaultWeaponId: "dress_shoe", baseHp: 150, baseAttack: 9 },
+  crane: { id: "crane", name: "Hạc Nhi", spriteSrc: "/character/ingame/crane.png", defaultWeaponId: "dress_shoe", baseHp: 70, baseAttack: 20 },
+};
 
-export function getClassConfig(id: string): CharacterClassConfig | undefined {
-  return CHARACTER_CLASSES.find((c) => c.id === id);
-}
+export const CHARACTER_IDS = Object.keys(CHARACTERS) as CharacterId[];
+
+export const STAT_POINTS_PER_LEVEL = 5;

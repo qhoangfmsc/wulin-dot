@@ -20,12 +20,17 @@ currently exists; the skill describes how to build on it consistently.
 
 Quick summary (see the skill for the full, current version):
 
-- Domain code (character/stats/skills/inventory/world) lives under
-  `src/modules/<domain>/`. Cross-module glue (menus, HUD shell, panels,
-  backdrops) lives under `src/app/component/`. Don't create a catch-all
-  `src/components/` or `src/lib/`.
-- Character stats are named as concrete combat terms (Máu, Giáp, Sát Thương
-  Vật Lý...), never abstract RPG jargon — see `modules/stats/data.ts`.
+- Domain code (currently just `world`) lives under `src/modules/<domain>/`.
+  Cross-module glue (HUD, dialogue, minimap, backdrops) lives under
+  `src/app/component/`. Don't create a catch-all `src/components/` or
+  `src/lib/`.
+- All player-facing text is Vietnamese — short, literal sentences, no
+  wordplay. Three fonts, named after the actual font (not `font-title`-style
+  aliases): `font-vl` (default reading font), `font-bmx` (game name/impact
+  text only), `font-p22` (short notification/prompt titles). Readable text
+  sizes run ~28px. Desktop-only for now — don't add `sm:`/`md:` responsive
+  variants unless asked. See the skill's font/ngôn ngữ section for the full
+  rule.
 - Animation: GSAP for React/DOM, Phaser's own `update()` for anything inside
   the canvas, plain CSS `@keyframes` for state-independent looping effects.
   Don't mix systems for one effect.

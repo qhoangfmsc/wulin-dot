@@ -1,202 +1,40 @@
-import type { CharacterClassId } from "@/modules/character/types";
 import type { SkillNode } from "./types";
 
-/** Each class gets a small tree: 1 free tier-0 passive + 2 tier-1 + 2 tier-2
- * (each gated behind one tier-1 node) + 1 tier-3 ultimate (gated behind both
- * tier-2 nodes). Enough shape to prototype the UI; extend per class later. */
-export const SKILL_TREES: Record<CharacterClassId, SkillNode[]> = {
-  "crane": [
-    {
-      id: "crane-poison-feather",
-      name: "Độc Vũ Hạc Linh",
-      description: "Đòn đánh thường có cơ hội gây Độc, mất máu theo thời gian.",
-      type: "passive",
-      tier: 0,
-      icon: "Feather",
-      requires: [],
-      cost: 0,
-    },
-    {
-      id: "crane-piercing-shot",
-      name: "Lạc Tiễn Nhất Phát",
-      description: "Bắn một mũi tên xuyên táo, gây sát thương lớn theo đường thẳng.",
-      type: "active",
-      tier: 1,
-      icon: "Target",
-      requires: ["crane-poison-feather"],
-      cost: 1,
-    },
-    {
-      id: "crane-light-step",
-      name: "Hạc Bộ Khinh Thân",
-      description: "Tăng Tốc Độ Di Chuyển và tỉ lệ né tránh khi liên tục di chuyển.",
-      type: "passive",
-      tier: 1,
-      icon: "Wind",
-      requires: ["crane-poison-feather"],
-      cost: 1,
-    },
-    {
-      id: "crane-poison-rain",
-      name: "Thiên La Độc Vũ",
-      description: "Mưa tên tẩm độc trút xuống một vùng rộng.",
-      type: "active",
-      tier: 2,
-      icon: "CloudRain",
-      requires: ["crane-piercing-shot"],
-      cost: 2,
-    },
-    {
-      id: "crane-wind-pursuit",
-      name: "Phong Hạc Truy Hình",
-      description: "Lướt nhanh tới mục tiêu và tung liên hoàn cước.",
-      type: "active",
-      tier: 2,
-      icon: "Zap",
-      requires: ["crane-light-step"],
-      cost: 2,
-    },
-    {
-      id: "crane-cloud-piercer",
-      name: "Bạch Hạc Xuyên Vân",
-      description: "Tuyệt kỹ: vọt lên không trung, trút loạt tên độc xuống toàn bộ kẻ địch.",
-      type: "active",
-      tier: 3,
-      icon: "Sparkles",
-      requires: ["crane-poison-rain", "crane-wind-pursuit"],
-      cost: 3,
-    },
-  ],
-  "dragon": [
-    {
-      id: "dragon-qi-ward",
-      name: "Long Khí Hộ Thể",
-      description: "Tự hồi Năng Lượng theo thời gian, giảm sát thương phép nhận vào.",
-      type: "passive",
-      tier: 0,
-      icon: "ShieldHalf",
-      requires: [],
-      cost: 0,
-    },
-    {
-      id: "dragon-flame-palm",
-      name: "Long Diễm Chưởng",
-      description: "Phóng một chưởng lửa, gây sát thương diện rộng.",
-      type: "active",
-      tier: 1,
-      icon: "Flame",
-      requires: ["dragon-qi-ward"],
-      cost: 1,
-    },
-    {
-      id: "dragon-frost-technique",
-      name: "Hàn Băng Quyết",
-      description: "Tăng Sát Thương Phép, làm chậm kẻ địch khi trúng đòn.",
-      type: "passive",
-      tier: 1,
-      icon: "Snowflake",
-      requires: ["dragon-qi-ward"],
-      cost: 1,
-    },
-    {
-      id: "dragon-flame-charge",
-      name: "Liệt Diễm Cuồng Long",
-      description: "Triệu hồi rồng lửa lao thẳng, gây sát thương lớn theo đường thẳng.",
-      type: "active",
-      tier: 2,
-      icon: "Flame",
-      requires: ["dragon-flame-palm"],
-      cost: 2,
-    },
-    {
-      id: "dragon-ice-seal",
-      name: "Băng Phong Bách Trượng",
-      description: "Đóng băng khu vực xung quanh, khiến kẻ địch bất động.",
-      type: "active",
-      tier: 2,
-      icon: "Snowflake",
-      requires: ["dragon-frost-technique"],
-      cost: 2,
-    },
-    {
-      id: "dragon-manifest",
-      name: "Thanh Long Xuất Thế",
-      description: "Tuyệt kỹ: hóa thân rồng xanh, gây sát thương khổng lồ quanh thân.",
-      type: "active",
-      tier: 3,
-      icon: "Sparkles",
-      requires: ["dragon-flame-charge", "dragon-ice-seal"],
-      cost: 3,
-    },
-  ],
-  "tiger": [
-    {
-      id: "tiger-iron-hide",
-      name: "Thiết Giáp Hổ Cốt",
-      description: "Giảm % sát thương nhận vào, tăng phòng ngự khi Máu thấp.",
-      type: "passive",
-      tier: 0,
-      icon: "ShieldPlus",
-      requires: [],
-      cost: 0,
-    },
-    {
-      id: "tiger-claw-strike",
-      name: "Hổ Trảo Công",
-      description: "Vung trảo mãnh hổ, gây sát thương và làm choáng mục tiêu.",
-      type: "active",
-      tier: 1,
-      icon: "Swords",
-      requires: ["tiger-iron-hide"],
-      cost: 1,
-    },
-    {
-      id: "tiger-footwork",
-      name: "Cuồng Hổ Bộ Pháp",
-      description: "Tăng Giáp và tốc độ hồi Máu.",
-      type: "passive",
-      tier: 1,
-      icon: "Footprints",
-      requires: ["tiger-iron-hide"],
-      cost: 1,
-    },
-    {
-      id: "tiger-mountain-charge",
-      name: "Mãnh Hổ Xuất Sơn",
-      description: "Lao thẳng vào kẻ địch, gây sát thương và đẩy lùi.",
-      type: "active",
-      tier: 2,
-      icon: "Zap",
-      requires: ["tiger-claw-strike"],
-      cost: 2,
-    },
-    {
-      id: "tiger-diamond-body",
-      name: "Kim Cang Bất Hoại",
-      description: "Miễn nhiễm khống chế trong thời gian ngắn khi Máu dưới 30%.",
-      type: "passive",
-      tier: 2,
-      icon: "ShieldCheck",
-      requires: ["tiger-footwork"],
-      cost: 2,
-    },
-    {
-      id: "tiger-king-descent",
-      name: "Hổ Vương Giáng Thế",
-      description: "Tuyệt kỹ: biến thân hổ vương, tăng mạnh sát thương và phòng ngự.",
-      type: "active",
-      tier: 3,
-      icon: "Sparkles",
-      requires: ["tiger-mountain-charge", "tiger-diamond-body"],
-      cost: 3,
-    },
-  ],
-};
+/** Hand-authored skill tree — no real gameplay effect from learning yet
+ * (see SKILL.md), but the LEARN flow itself is real: level gate +
+ * prerequisite gate + persisted progress (`store.ts`). Add a node here to
+ * grow the tree, no other code changes needed — `SkillsPanel` lays out
+ * purely from `tier`/`prerequisiteIds`, nothing hardcoded per-node in the
+ * component. */
+export const SKILL_TREE: SkillNode[] = [
+  { id: "iron_fist", name: "Thiết Quyền", description: "Rèn luyện nắm đấm cứng như sắt.", requiredLevel: 1, tier: 0, prerequisiteIds: [] },
+  { id: "swift_step", name: "Khinh Công", description: "Bước chân nhẹ nhàng, di chuyển như gió thoảng.", requiredLevel: 1, tier: 0, prerequisiteIds: [] },
+  {
+    id: "iron_body",
+    name: "Kim Cang Thân",
+    description: "Luyện thân thể cứng như kim cương, chịu đòn tốt hơn.",
+    requiredLevel: 5,
+    tier: 1,
+    prerequisiteIds: ["iron_fist"],
+  },
+  {
+    id: "phantom_strike",
+    name: "Ảo Ảnh Chưởng",
+    description: "Ra đòn nhanh tới mức đối phương không kịp nhìn thấy.",
+    requiredLevel: 5,
+    tier: 1,
+    prerequisiteIds: ["swift_step"],
+  },
+  {
+    id: "dragon_roar",
+    name: "Long Ngâm Công",
+    description: "Tuyệt kỹ hợp nhất sức mạnh và tốc độ, chỉ cao thủ mới luyện được.",
+    requiredLevel: 12,
+    tier: 2,
+    prerequisiteIds: ["iron_body", "phantom_strike"],
+  },
+];
 
-export function getPassiveSkill(classId: CharacterClassId): SkillNode {
-  return SKILL_TREES[classId][0];
-}
+export const SKILL_TREE_BY_ID: Record<string, SkillNode> = Object.fromEntries(SKILL_TREE.map((s) => [s.id, s]));
 
-export function getUltimateSkill(classId: CharacterClassId): SkillNode {
-  return SKILL_TREES[classId].find((n) => n.tier === 3)!;
-}
+export const SKILL_TIERS = Array.from(new Set(SKILL_TREE.map((s) => s.tier))).sort((a, b) => a - b);

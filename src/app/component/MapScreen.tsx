@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import type { MapEdge } from "@/modules/world/mapScene";
 import { cellAt, getCellWalls, neighborCoords, parseGridMap } from "@/modules/world/mapGrid";
@@ -9,12 +9,12 @@ import { MAP_MODULES } from "@/modules/world/maps";
 import type { DialogueLine } from "@/modules/world/maps";
 import { useMapProgressStore } from "@/modules/world/mapProgress";
 import { useMapMusic } from "@/modules/world/useMapMusic";
-import { GridMinimap } from "./GridMinimap";
+import { getEffectiveStats, syncMaxHpToLiveHud, useCharacterStore } from "@/modules/character/store";
+import { useInventoryStore } from "@/modules/inventory/store";
+import { GameHud } from "./GameHud";
 import { TutorialOverlay } from "./TutorialOverlay";
 import { DialogueBox } from "./DialogueBox";
 import { ExperienceBar } from "./ExperienceBar";
-import { LiveHudBar } from "./LiveHudBar";
-import { PlayerStatusPanel } from "./PlayerStatusPanel";
 
 const MapCanvas = dynamic(() => import("@/modules/world/components/MapCanvas").then((m) => m.MapCanvas), { ssr: false });
 
@@ -47,17 +47,29 @@ export function MapScreen() {
 
   useMapMusic(map.music, currentMapId);
 
+  // Subscribed (not just read via getState()) so this component re-renders
+  // — and re-computes `stats` below — whenever leveling/stat allocation or
+  // equipping a weapon changes them.
+  useCharacterStore();
+  useInventoryStore((s) => s.equippedItemId);
+  const stats = getEffectiveStats();
+
+  useEffect(() => {
+    // One-time sync on mount: `liveHud.maxHp` isn't persisted, but
+    // character/inventory progress is — re-derive it from whatever the
+    // player already had equipped/allocated in a previous session.
+    syncMaxHpToLiveHud();
+  }, []);
+
   const posKey = cellKey(position.row, position.col);
   const cell = parsed.cells[position.row][position.col];
   const walls = useMemo(() => getCellWalls(parsed, position.row, position.col), [parsed, position]);
-  const isStartCell = position.row === parsed.start.row && position.col === parsed.start.col;
-  const floorSrc = isStartCell
-    ? "/ground/dirt.png" // the room the player first spawns into is always dirt
-    : (position.row + position.col) % 2 === 0
-      ? "/ground/dirt.png"
-      : "/ground/grass.png";
-  const wallSrc = cell.kind === "boss" ? "/ground/lava_wall.png" : "/ground/log_wall.png";
-  const tint = cell.kind === "boss" ? 0xef4444 : cell.kind === "special" ? 0xa855f7 : undefined;
+  // Every room's look is data declared on the map module, not a component
+  // if-else — see `MapModule.roomStyles`/`floorOverridesByCell`.
+  const roomStyle = map.roomStyles[cell.kind];
+  const floorSrc = map.floorOverridesByCell?.[posKey] ?? roomStyle.floorSrc;
+  const wallSrc = roomStyle.wallSrc;
+  const tint = roomStyle.tint;
   // Memoized so the array reference only changes when the room actually
   // changes — `MapCanvas`'s effect depends on `obstacles` by reference, so a
   // freshly spread array on every render (e.g. from dismissing the dialogue
@@ -68,6 +80,7 @@ export function MapScreen() {
     () => [...(map.obstaclesByCell[posKey] ?? []), ...subjects],
     [map, posKey, subjects],
   );
+  const monsters = useMemo(() => map.monstersByCell?.[posKey] ?? [], [map, posKey]);
 
   // Adjust state during render (not in an effect) so the dialogue for a
   // room's story object appears the moment that room is reached, exactly
@@ -109,23 +122,23 @@ export function MapScreen() {
       <MapCanvas
         key={posKey}
         floorSrc={floorSrc}
-        spriteUrl="/character/ingame/dog.png"
+        spriteUrl={stats.characterSpriteSrc}
+        weaponSpriteSrc={stats.weaponSpriteSrc}
+        playerAttackDamage={stats.attack}
         walls={walls}
         wallSrc={wallSrc}
         tint={tint}
         obstacles={obstacles}
+        monsters={monsters}
         spawnAt={spawnAt}
         onReachEdge={handleReachEdge}
       />
-
-      <GridMinimap cells={parsed.cells} position={position} visited={visited} />
 
       {showTutorial && !dialogueQueue && <TutorialOverlay onDismiss={() => setShowTutorial(false)} />}
 
       {dialogueQueue && <DialogueBox lines={dialogueQueue} onDone={() => setDialogueQueue(null)} />}
 
-      <PlayerStatusPanel />
-      <LiveHudBar />
+      <GameHud cells={parsed.cells} position={position} visited={visited} />
       <ExperienceBar />
 
       <div ref={fadeRef} className="pointer-events-none absolute inset-0 z-30 bg-zinc-950 opacity-0" />

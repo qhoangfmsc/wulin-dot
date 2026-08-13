@@ -3,20 +3,37 @@
 import Phaser from "phaser";
 import { useEffect, useRef } from "react";
 import { createMapScene, type MapEdge, type ObstacleConfig, type WallConfig } from "../mapScene";
+import type { MonsterSpawnConfig } from "../monster";
 
 interface MapCanvasProps {
   floorSrc: string;
   spriteUrl: string;
+  weaponSpriteSrc: string;
+  playerAttackDamage: number;
   walls: WallConfig;
   wallSrc: string;
   tint?: number;
   obstacles?: ObstacleConfig[];
+  monsters?: MonsterSpawnConfig[];
   roomScale?: number;
   spawnAt: MapEdge | null;
   onReachEdge: (edge: MapEdge) => void;
 }
 
-export function MapCanvas({ floorSrc, spriteUrl, walls, wallSrc, tint, obstacles, roomScale, spawnAt, onReachEdge }: MapCanvasProps) {
+export function MapCanvas({
+  floorSrc,
+  spriteUrl,
+  weaponSpriteSrc,
+  playerAttackDamage,
+  walls,
+  wallSrc,
+  tint,
+  obstacles,
+  monsters,
+  roomScale,
+  spawnAt,
+  onReachEdge,
+}: MapCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
 
@@ -38,7 +55,22 @@ export function MapCanvas({ floorSrc, spriteUrl, walls, wallSrc, tint, obstacles
         width: container.clientWidth,
         height: container.clientHeight,
       },
-      scene: [createMapScene({ floorSrc, spriteUrl, walls, wallSrc, tint, obstacles, roomScale, spawnAt, onReachEdge })],
+      scene: [
+        createMapScene({
+          floorSrc,
+          spriteUrl,
+          weaponSpriteSrc,
+          playerAttackDamage,
+          walls,
+          wallSrc,
+          tint,
+          obstacles,
+          monsters,
+          roomScale,
+          spawnAt,
+          onReachEdge,
+        }),
+      ],
     });
     gameRef.current = game;
 
@@ -53,7 +85,7 @@ export function MapCanvas({ floorSrc, spriteUrl, walls, wallSrc, tint, obstacles
       gameRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [floorSrc, spriteUrl, walls, wallSrc, tint, obstacles, roomScale, spawnAt]);
+  }, [floorSrc, spriteUrl, weaponSpriteSrc, playerAttackDamage, walls, wallSrc, tint, obstacles, monsters, roomScale, spawnAt]);
 
   return <div ref={containerRef} className="absolute inset-0" />;
 }

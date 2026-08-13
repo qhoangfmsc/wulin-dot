@@ -1,11 +1,12 @@
 "use client";
 
-import { useLiveHudStore } from "@/modules/world/liveHud";
+import { useCharacterStore } from "@/modules/character/store";
 
 /** Full-width XP bar, fixed to the very bottom of the screen — always one
- * line, always the same width as the viewport. */
+ * line, always the same width as the viewport. Reads `character` store
+ * (persisted progression), not `liveHud` (per-life runtime state). */
 export function ExperienceBar() {
-  const { exp, expToNext } = useLiveHudStore();
+  const { exp, expToNext } = useCharacterStore();
   const pct = Math.min(100, Math.round((exp / expToNext) * 100));
 
   return (

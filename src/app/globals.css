@@ -8,8 +8,10 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-bmx);
-  --font-title: var(--font-p22);
+  --font-vl: var(--vl-typewriter);
+  --font-bmx: var(--bmx-radical);
+  --font-p22: var(--p22-slogan);
+  --font-sans: var(--font-vl);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -28,11 +30,7 @@ html, body {
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-p22), serif;
-}
-
-.font-title {
-  font-family: var(--font-bmx), Arial, Helvetica, sans-serif;
+  font-family: var(--font-vl), sans-serif;
 }
 
 /* Ambient background blobs (character creation screen) */

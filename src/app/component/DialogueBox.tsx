@@ -47,10 +47,10 @@ export function DialogueBox({ lines, onDone }: { lines: DialogueLine[]; onDone: 
   const isLeft = line.side === "left";
 
   return (
-    <div onClick={advance} className="absolute inset-x-0 bottom-28 z-40 flex cursor-pointer justify-center px-4">
+    <div onClick={advance} className="absolute inset-x-0 bottom-6 z-40 flex cursor-pointer justify-center px-4">
       <div ref={panelRef} className={`flex w-full max-w-2xl items-end gap-3 ${isLeft ? "flex-row" : "flex-row-reverse"}`}>
         <div
-          className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full border-2 shadow-lg sm:h-20 sm:w-20"
+          className="relative h-20 w-20 shrink-0 overflow-hidden rounded-full border-2 shadow-lg"
           style={{ borderColor: "#7a5230", background: "radial-gradient(circle at 35% 30%, #f3e2bb, #d8bd8c)" }}
         >
           {line.portraitSrc ? (
@@ -70,9 +70,9 @@ export function DialogueBox({ lines, onDone }: { lines: DialogueLine[]; onDone: 
             boxShadow: "inset 0 0 0 1px #fff6e0, 0 8px 24px rgba(0,0,0,0.45)",
           }}
         >
-          <p className="text-lg font-bold text-[#5c3a21] sm:text-2xl">{line.name}</p>
-          <p className="mt-1 text-lg text-[#3f2a16] sm:text-2xl">{line.text}</p>
-          <p className="mt-2 text-right text-lg text-[#8a6a3f]">Tap to continue</p>
+          <p className="font-p22 text-[18px] font-bold text-[#5c3a21]">{line.name}</p>
+          <p className="mt-1 text-[18px] text-[#3f2a16]">{line.text}</p>
+          <p className="font-p22 mt-2 text-right text-xl text-[#8a6a3f]">Chạm để tiếp tục</p>
         </div>
       </div>
     </div>

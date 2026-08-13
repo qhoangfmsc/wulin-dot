@@ -1,11 +1,21 @@
 import type { ObstacleConfig } from "../mapScene";
-import type { GridSymbol } from "../mapGrid";
+import type { GridCellKind, GridSymbol } from "../mapGrid";
+import type { MonsterSpawnConfig } from "../monster";
 
 export interface DialogueLine {
   side: "left" | "right";
   name: string;
   portraitSrc?: string;
   text: string;
+}
+
+/** How a room looks — floor/wall art + optional color wash. Declared per
+ * `GridCellKind` in a map module (`roomStyles`), never computed with
+ * if-else in a component. */
+export interface RoomVisualStyle {
+  floorSrc: string;
+  wallSrc: string;
+  tint?: number;
 }
 
 /** A story object placed in a room — everything an `ObstacleConfig` has
@@ -24,9 +34,18 @@ export interface MapModule {
   grid: GridSymbol[][];
   obstaclesByCell: Record<string, ObstacleConfig[]>;
   subjectsByCell?: Record<string, SubjectConfig[]>;
+  /** Hostile mobs placed in specific rooms, keyed by `"row-col"`. */
+  monstersByCell?: Record<string, MonsterSpawnConfig[]>;
   /** Looped playlist — `onended` advances to the next track, wrapping back
    * to the start. A single-track array just loops that one track. */
   music: string[];
   /** Whether `TutorialOverlay` should ever appear on this map. */
   showTutorial: boolean;
+  /** Floor/wall/tint per room kind — the only place a map decides "what
+   * does a boss/special/normal room look like", so `MapScreen` never has to
+   * branch on `cell.kind` itself. */
+  roomStyles: Record<GridCellKind, RoomVisualStyle>;
+  /** Force a specific cell's floor regardless of its kind's default (e.g.
+   * the start cell always being dirt), keyed by `"row-col"`. */
+  floorOverridesByCell?: Record<string, string>;
 }

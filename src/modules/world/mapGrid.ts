@@ -5,7 +5,15 @@ import type { MapEdge, WallConfig } from "./mapScene";
  * `"S"` = special room, `"?"` = unknown room (shown as fog on the minimap
  * until the player actually walks into it). Write grids as plain nested
  * arrays — `mapGrid.ts` derives everything else (which edges are open,
- * where the player starts) from this one structure. */
+ * where the player starts) from this one structure.
+ *
+ * Rows can be **jagged** (different lengths, including empty `[]`) — only
+ * write the cells that actually exist. There's no need to pad a row with
+ * trailing `0`s just to line it up with a longer row, and no need for a
+ * fully-`0` row/column just to keep the array rectangular. A cell past the
+ * end of its row (or a row past the end of the grid) is simply treated as
+ * `0` (no room) — this is what makes maze-shaped maps cheap to author: only
+ * the real rooms cost you a character. */
 export type GridSymbol = 0 | 1 | "X" | "B" | "S" | "?";
 
 export type GridCellKind = "empty" | "normal" | "boss" | "special" | "unknown";
@@ -23,10 +31,12 @@ export interface ParsedGridMap {
   start: { row: number; col: number };
 }
 
-/** Soft cap on grid dimensions — big enough for a real campaign map, small
- * enough that the minimap and per-cell rendering stay cheap. Not a hard
- * technical limit, just the agreed sane ceiling. */
-export const MAX_GRID_SIZE = 10;
+/** Soft cap on grid dimensions — big enough for a real maze-shaped campaign
+ * map, small enough that stuff stays cheap. Not a hard technical limit
+ * (the minimap no longer renders the whole grid at once — see
+ * `GridMinimap.tsx`'s player-centered viewport — so this isn't a rendering
+ * constraint anymore, just a sane ceiling against typos). */
+export const MAX_GRID_SIZE = 30;
 
 function symbolToKind(symbol: GridSymbol): GridCellKind {
   switch (symbol) {
@@ -44,14 +54,14 @@ function symbolToKind(symbol: GridSymbol): GridCellKind {
   }
 }
 
-/** Turns an authored grid (rows of `GridSymbol`) into a `ParsedGridMap` —
- * finds the single `"X"` start cell and converts every symbol to a
- * `GridCellKind`. Throws if there's no `"X"` or more than one, or if the
- * grid exceeds `MAX_GRID_SIZE` in either dimension — better to fail loudly
- * at startup than silently spawn the player somewhere wrong. */
+/** Turns an authored grid (jagged rows of `GridSymbol`) into a
+ * `ParsedGridMap` — finds the single `"X"` start cell and converts every
+ * symbol to a `GridCellKind`. Throws if there's no `"X"` or more than one,
+ * or if the grid exceeds `MAX_GRID_SIZE` in either dimension — better to
+ * fail loudly at startup than silently spawn the player somewhere wrong. */
 export function parseGridMap(symbols: GridSymbol[][]): ParsedGridMap {
   const rows = symbols.length;
-  const cols = symbols[0]?.length ?? 0;
+  const cols = symbols.reduce((max, row) => Math.max(max, row.length), 0);
   if (rows > MAX_GRID_SIZE || cols > MAX_GRID_SIZE) {
     throw new Error(`Grid map ${rows}x${cols} exceeds MAX_GRID_SIZE (${MAX_GRID_SIZE})`);
   }
@@ -85,7 +95,9 @@ export function neighborCoords(row: number, col: number, edge: MapEdge): { row: 
 
 export function cellAt(map: ParsedGridMap, row: number, col: number): GridCell | null {
   if (row < 0 || row >= map.rows || col < 0 || col >= map.cols) return null;
-  return map.cells[row][col];
+  // Rows are jagged — a row shorter than `col` simply has no cell there,
+  // same as if it were never written at all (treated as "no room").
+  return map.cells[row][col] ?? null;
 }
 
 /** A cell's wall config is entirely derived from grid adjacency — an edge
