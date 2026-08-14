@@ -20,7 +20,7 @@ export function FriendsDropdown() {
       style={{ borderColor: INK_BORDER, background: "linear-gradient(160deg, #f4e6c4 0%, #e6d1a1 55%, #d9bd83 100%)" }}
       onClick={(e) => e.stopPropagation()}
     >
-      <p className="font-p22 mb-2 text-sm font-bold uppercase tracking-[0.1em] text-[#5c3a21]">Bạn Bè</p>
+      <p className="mb-2 text-sm font-bold uppercase tracking-[0.1em] text-[#5c3a21]">Bạn Bè</p>
 
       {friends.length === 0 ? (
         <p className="text-xs leading-snug text-[#8a6a3f]">Chưa có bạn bè nào — tính năng sắp ra mắt.</p>

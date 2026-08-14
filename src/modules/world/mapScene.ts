@@ -4,8 +4,13 @@ import { Monster, type MonsterSpawnConfig } from "./monster";
 import { spawnDamageText } from "./damageText";
 import { fireAttack } from "./attack";
 import { addRage, damagePlayer, healPlayer, respawnPlayer, useLiveHudStore } from "./liveHud";
+import { clearCombatTarget, setCombatTarget } from "./combatTarget";
 import { gainExp } from "@/modules/character/store";
 import { rollDrop } from "@/modules/inventory/store";
+import { Npc } from "@/modules/npc/npc";
+import { NPCS } from "@/modules/npc/data";
+import type { NpcId, NpcSpawnConfig } from "@/modules/npc/types";
+import { reportQuestProgress } from "@/modules/quest/store";
 
 const DEFAULT_ROOM_SCALE = 1.5; // each room is ~1.5x the viewport by default, so there's real room to pan
 const INSET = 20;
@@ -32,7 +37,7 @@ const RAGE_DECAY_TICK_MS = 50; // 1 point / 50ms = 20 points/s
 const HP_REGEN_TICK_MS = 1000; // 1 hp / s while alive and below max
 const RESPAWN_INVULN_MS = 1200;
 const OBSTACLE_PADDING = 18; // roughly the player's collision radius
-const SPRITE_LOAD_WIDTH = 256;
+const SPRITE_LOAD_WIDTH = 384;
 
 // Camera pulls back a bit near any edge — gives a peek of "there's more
 // room here, and something beyond it" instead of a hard, static crop.
@@ -100,6 +105,8 @@ interface MapSceneOptions {
   obstacles?: ObstacleConfig[];
   /** Hostile mobs placed in this room — empty array is fine. */
   monsters?: MonsterSpawnConfig[];
+  /** Interactable NPCs placed in this room — empty array is fine. */
+  npcs?: NpcSpawnConfig[];
   /** Room size = viewport × this multiplier. Defaults to 1.5 — expose it so
    * a room can ask for something bigger/smaller later without touching
    * this file. */
@@ -109,6 +116,21 @@ interface MapSceneOptions {
    * map-link transition on the opposite edge of the previous room). */
   spawnAt: MapEdge | null;
   onReachEdge: (edge: MapEdge) => void;
+  onPlayerDeath: () => void;
+  /** Fired when the player presses Space while within an `Npc`'s talk
+   * range — same "Phaser only reports the event, React decides what to do
+   * with it" split as `onReachEdge`/`onPlayerDeath`. Not debounced on this
+   * side: React ignores repeat calls while a dialogue/modal is already
+   * open (e.g. subsequent Space presses that are really meant to advance
+   * the dialogue also pass through here harmlessly). */
+  onNpcInteract: (npcId: NpcId) => void;
+  /** `window.devicePixelRatio` from `MapCanvas` — the canvas backing store
+   * is `dpr`× the CSS size (for Retina sharpness, see `MapCanvas.tsx`), so
+   * `this.scale.width/height` reports that inflated size too. Divide by
+   * `dpr` wherever room bounds are derived from it, and multiply camera
+   * zoom by `dpr`, so every other gameplay coordinate stays exactly as if
+   * `dpr` were 1. Defaults to 1 (no-op) if omitted. */
+  dpr?: number;
 }
 
 /** One walk-around room of the grid-based world map (see `mapGrid.ts` /
@@ -133,9 +155,13 @@ export function createMapScene({
   tint,
   obstacles = [],
   monsters: monsterConfigs = [],
+  npcs: npcConfigs = [],
   roomScale = DEFAULT_ROOM_SCALE,
   spawnAt,
   onReachEdge,
+  onPlayerDeath,
+  onNpcInteract,
+  dpr = 1,
 }: MapSceneOptions) {
   return class MapScene extends Phaser.Scene {
     private playerActor!: Actor;
@@ -148,6 +174,7 @@ export function createMapScene({
       leftArrow: Phaser.Input.Keyboard.Key;
       downArrow: Phaser.Input.Keyboard.Key;
       rightArrow: Phaser.Input.Keyboard.Key;
+      space: Phaser.Input.Keyboard.Key;
     };
     private triggered = false;
     private playMinX = 0;
@@ -156,6 +183,7 @@ export function createMapScene({
     private playMaxY = 0;
     private obstacleRects: ObstacleRect[] = [];
     private monsters: Monster[] = [];
+    private npcs: Npc[] = [];
     private lastPlayerAttackAt = -Infinity;
     private lastRageDecayTickAt = -Infinity;
     private lastHpRegenTickAt = -Infinity;
@@ -171,16 +199,24 @@ export function createMapScene({
       this.load.image("weapon", optimizedSpriteUrl(weaponSpriteSrc, 128));
       if (Object.values(walls).some(Boolean)) this.load.image("room-wall", optimizedSpriteUrl(wallSrc, WALL_THICKNESS));
       obstacles.forEach((o, i) => {
-        if (o.spriteSrc) this.load.image(`obstacle-${i}`, optimizedSpriteUrl(o.spriteSrc, 256));
+        if (o.spriteSrc) this.load.image(`obstacle-${i}`, optimizedSpriteUrl(o.spriteSrc));
       });
       monsterConfigs.forEach((m, i) => {
-        this.load.image(`monster-${i}`, optimizedSpriteUrl(m.spriteSrc, 256));
+        this.load.image(`monster-${i}`, optimizedSpriteUrl(m.spriteSrc));
+      });
+      npcConfigs.forEach((n, i) => {
+        this.load.image(`npc-${i}`, optimizedSpriteUrl(NPCS[n.npcId].spriteSrc));
       });
     }
 
     create() {
-      const roomWidth = Math.round(this.scale.width * roomScale);
-      const roomHeight = Math.round(this.scale.height * roomScale);
+      // `this.scale.width/height` is the canvas's Retina-sharp backing-store
+      // size (`dpr`× the CSS size — see `MapSceneOptions.dpr` doc comment),
+      // not the on-screen room size — divide back down so room dimensions
+      // (and everything derived from them: obstacle/monster positions,
+      // movement bounds) stay exactly what they'd be at `dpr === 1`.
+      const roomWidth = Math.round((this.scale.width / dpr) * roomScale);
+      const roomHeight = Math.round((this.scale.height / dpr) * roomScale);
 
       const leftInset = walls.left ? WALL_THICKNESS + INSET : INSET;
       const rightInset = walls.right ? WALL_THICKNESS + INSET : INSET;
@@ -234,6 +270,15 @@ export function createMapScene({
         return new Monster(this, config, config.xFrac * roomWidth, config.yFrac * roomHeight, 8, textureKey);
       });
 
+      this.npcs = npcConfigs.map((config, i) => {
+        const key = `npc-${i}`;
+        const textureKey = this.textures.exists(key) ? key : null;
+        return new Npc(this, config, config.xFrac * roomWidth, config.yFrac * roomHeight, 8, textureKey);
+      });
+      // NPCs block movement like obstacles do — reuse the same collision
+      // rects instead of a separate check just for NPCs.
+      this.obstacleRects.push(...this.npcs.map((n) => n.collisionBox));
+
       let startX = roomWidth / 2;
       let startY = roomHeight / 2;
       if (spawnAt === "left") startX = this.playMinX + SPAWN_OFFSET;
@@ -251,7 +296,10 @@ export function createMapScene({
         rangeRadius: ATTACK_RANGE_RADIUS,
       });
       this.cameras.main.startFollow(this.playerActor.container, true, 0.15, 0.15);
-      this.cameras.main.setZoom(ZOOM_CENTER);
+      // Zoom in by `dpr` to fill the Retina-sharp (dpr×) backing store with
+      // world content sized in the same units as before — see `dpr` doc
+      // comment on `MapSceneOptions`.
+      this.cameras.main.setZoom(ZOOM_CENTER * dpr);
 
       this.keys = this.input.keyboard!.addKeys({
         up: "W",
@@ -262,6 +310,7 @@ export function createMapScene({
         leftArrow: "LEFT",
         downArrow: "DOWN",
         rightArrow: "RIGHT",
+        space: "SPACE",
       }) as typeof this.keys;
     }
 
@@ -296,6 +345,11 @@ export function createMapScene({
       }
 
       const target = this.findNearestAliveMonsterInRange();
+      if (target) {
+        setCombatTarget(target.hp, target.config.hp, target.config.spriteSrc);
+      } else {
+        clearCombatTarget();
+      }
       if (target && now - this.lastPlayerAttackAt >= PLAYER_ATTACK_INTERVAL_MS) {
         this.lastPlayerAttackAt = now;
         addRage(RAGE_PER_HIT);
@@ -312,6 +366,7 @@ export function createMapScene({
             const killed = target.takeDamage(this, dmg);
             if (killed) {
               gainExp(target.config.expReward);
+              if (target.config.questId) reportQuestProgress(target.config.questId, 1);
               const drop = rollDrop();
               if (drop.currency) spawnDamageText(this, target.x, target.y - 20, `+${drop.currency} Bạc`, "#f2c66d");
               if (drop.summonCard) spawnDamageText(this, target.x, target.y - 40, "+1 Thẻ Triệu Hồi", "#a855f7");
@@ -344,14 +399,43 @@ export function createMapScene({
       return nearest;
     }
 
-    /** Respawns at the room's center with full HP and a brief invulnerable
-     * window — the only place player `hp` is read to decide this. */
+    /** Every frame: refreshes each NPC's quest-status bubble + in-range glow
+     * (see `Npc.refreshMarker`/`setInRange`), then — on the frame the player
+     * presses Space while at least one NPC is in range — reports the
+     * interaction to React via `onNpcInteract`. Mirrors
+     * `findNearestAliveMonsterInRange`'s "closest wins" tie-break. */
+    private updateNpcInteraction() {
+      let nearest: Npc | null = null;
+      let nearestDist = Infinity;
+      for (const npc of this.npcs) {
+        const inRange = npc.isInRange(this.playerActor.x, this.playerActor.y);
+        npc.setInRange(this, inRange);
+        npc.refreshMarker();
+        if (inRange) {
+          const dist = Phaser.Math.Distance.Between(this.playerActor.x, this.playerActor.y, npc.x, npc.y);
+          if (dist < nearestDist) {
+            nearest = npc;
+            nearestDist = dist;
+          }
+        }
+      }
+      if (nearest && Phaser.Input.Keyboard.JustDown(this.keys.space)) {
+        onNpcInteract(nearest.id);
+      }
+    }
+
+    /** Heals to full and grants a brief invulnerable window immediately —
+     * the only place player `hp` is read to decide this — then hands off to
+     * React (`onPlayerDeath`, same pattern as `onReachEdge`) to show the
+     * "Bạn Đã Gục Ngã" notice and move the player back to the map's start
+     * room. Healing/invuln happen here, synchronously, so a monster attack
+     * landing again before React's fade completes can't re-trigger this. */
     private handlePossibleDeath(now: number) {
       if (now < this.invulnerableUntil) return;
       if (useLiveHudStore.getState().hp > 0) return;
-      this.playerActor.setPosition(this.playMinX + (this.playMaxX - this.playMinX) / 2, this.playMinY + (this.playMaxY - this.playMinY) / 2);
       respawnPlayer();
       this.invulnerableUntil = now + RESPAWN_INVULN_MS;
+      onPlayerDeath();
     }
 
     update(_time: number, delta: number) {
@@ -382,6 +466,7 @@ export function createMapScene({
       }
       this.playerActor.update(dt, moveAngle);
       this.updateCombat(dt, this.time.now);
+      this.updateNpcInteraction();
 
       const nearestEdgeDist = Math.min(
         this.playerActor.x - this.playMinX,
@@ -390,7 +475,7 @@ export function createMapScene({
         this.playMaxY - this.playerActor.y,
       );
       const t = Phaser.Math.Clamp(nearestEdgeDist / ZOOM_TRIGGER_DIST, 0, 1);
-      const targetZoom = Phaser.Math.Linear(ZOOM_NEAR_EDGE, ZOOM_CENTER, t);
+      const targetZoom = Phaser.Math.Linear(ZOOM_NEAR_EDGE, ZOOM_CENTER, t) * dpr;
       this.cameras.main.zoom = Phaser.Math.Linear(this.cameras.main.zoom, targetZoom, Math.min(1, dt * ZOOM_LERP_SPEED));
 
       if (!this.triggered) {

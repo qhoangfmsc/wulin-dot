@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { Actor } from "./actor";
+import type { QuestId } from "@/modules/quest/types";
 
 const DEFAULT_DISPLAY_SIZE = 52;
 const HP_BAR_WIDTH = 46;
@@ -24,6 +25,10 @@ export interface MonsterSpawnConfig {
   attackRadius: number;
   attackIntervalMs: number;
   expReward: number;
+  /** If set, killing this monster reports 1 point of progress toward this
+   * quest (only counts while the quest is actually accepted — see
+   * `reportQuestProgress` in `modules/quest/store.ts`). */
+  questId?: QuestId;
 }
 
 /** A hostile mob — owns its own `Actor` (art/rotation/hop), a floating HP
@@ -37,7 +42,7 @@ export interface MonsterSpawnConfig {
 export class Monster {
   readonly actor: Actor;
   readonly config: MonsterSpawnConfig;
-  private hp: number;
+  private currentHp: number;
   private aggro = false;
   private lastAttackAt = -Infinity;
   private dead = false;
@@ -53,7 +58,7 @@ export class Monster {
     textureKey: string | null,
   ) {
     this.config = config;
-    this.hp = config.hp;
+    this.currentHp = config.hp;
     this.actor = new Actor(scene, {
       x,
       y,
@@ -83,6 +88,12 @@ export class Monster {
     return !this.dead;
   }
 
+  /** Current HP — `config.hp` doubles as max HP. Read by `mapScene.ts` to
+   * drive `combatTarget.ts` (the on-screen "target monster" HUD). */
+  get hp() {
+    return this.currentHp;
+  }
+
   /** Call once per frame — chases `targetX/targetY` if aggro, otherwise
    * idles in place; keeps the HP bar glued above the actor either way. */
   update(dt: number, targetX: number, targetY: number) {
@@ -101,7 +112,7 @@ export class Monster {
 
     this.hpBarBg.setPosition(this.x, this.y + HP_BAR_OFFSET_Y);
     this.hpBarFill.setPosition(this.x - HP_BAR_WIDTH / 2, this.y + HP_BAR_OFFSET_Y);
-    this.hpBarFill.width = HP_BAR_WIDTH * Math.max(0, this.hp / this.config.hp);
+    this.hpBarFill.width = HP_BAR_WIDTH * Math.max(0, this.currentHp / this.config.hp);
   }
 
   /** True if close enough to `targetX/targetY` and its own attack cooldown
@@ -122,9 +133,9 @@ export class Monster {
   takeDamage(scene: Phaser.Scene, amount: number): boolean {
     if (this.dead) return false;
     this.aggro = true;
-    this.hp = Math.max(0, this.hp - amount);
+    this.currentHp = Math.max(0, this.currentHp - amount);
     this.actor.flashTint(scene);
-    if (this.hp <= 0) {
+    if (this.currentHp <= 0) {
       this.die(scene);
       return true;
     }

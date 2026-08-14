@@ -63,7 +63,7 @@ export function WuxiaModal({
           className="relative overflow-y-auto border-x-2 shadow-2xl"
           style={{ borderColor: INK_BORDER, background: "linear-gradient(160deg, #f4e6c4 0%, #e6d1a1 55%, #d9bd83 100%)" }}
         >
-          <p className="font-p22 px-6 pt-6 text-xl font-bold uppercase tracking-[0.15em] text-[#5c3a21]">{title}</p>
+          <p className="px-6 pt-6 text-xl font-bold uppercase tracking-[0.15em] text-[#5c3a21]">{title}</p>
           <div className="px-6 pb-6 pt-3">{children}</div>
         </div>
 

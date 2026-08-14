@@ -9,14 +9,19 @@ import type { DialogueLine } from "@/modules/world/maps";
 
 gsap.registerPlugin(useGSAP);
 
+const AUTO_ADVANCE_MS = 5000;
+
 /** In-game conversation box — one line at a time, portrait + name plate on
  * whichever `side` that line's speaker is on, so a real back-and-forth
  * reads as two people facing each other. Every line shows an avatar — a
  * generic silhouette if `portraitSrc` is omitted — never a bare name.
  * Tap anywhere (or Space) to advance, same convention as the intro screens.
- * Wuxia scroll styling: parchment gradient, double ink border, no art
- * assets required. Exits with a fade-out (not an abrupt unmount) so
- * dismissing it doesn't flash-cut back to the scene. */
+ * Also auto-advances on its own after `AUTO_ADVANCE_MS` per line (closing
+ * on the last one) so a player who forgets to press Space never gets stuck
+ * staring at old dialogue — same reasoning as `TutorialOverlay`'s
+ * auto-dismiss. Wuxia scroll styling: parchment gradient, double ink
+ * border, no art assets required. Exits with a fade-out (not an abrupt
+ * unmount) so dismissing it doesn't flash-cut back to the scene. */
 export function DialogueBox({ lines, onDone }: { lines: DialogueLine[]; onDone: () => void }) {
   const [index, setIndex] = useState(0);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -36,6 +41,12 @@ export function DialogueBox({ lines, onDone }: { lines: DialogueLine[]; onDone: 
     }
     window.addEventListener("keydown", handleKeydown);
     return () => window.removeEventListener("keydown", handleKeydown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [index]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(advance, AUTO_ADVANCE_MS);
+    return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index]);
 
@@ -70,9 +81,9 @@ export function DialogueBox({ lines, onDone }: { lines: DialogueLine[]; onDone: 
             boxShadow: "inset 0 0 0 1px #fff6e0, 0 8px 24px rgba(0,0,0,0.45)",
           }}
         >
-          <p className="font-p22 text-[18px] font-bold text-[#5c3a21]">{line.name}</p>
-          <p className="mt-1 text-[18px] text-[#3f2a16]">{line.text}</p>
-          <p className="font-p22 mt-2 text-right text-xl text-[#8a6a3f]">Chạm để tiếp tục</p>
+          <p className="text-[12px] font-bold text-[#5c3a21]">{line.name}</p>
+          <p className="mt-1 text-[18px] font-thin text-[#3f2a16]">{line.text}</p>
+          <p className="font-p22 mt-2 text-right text-xl text-[#8a6a3f]">Nhấn Space để tiếp tục</p>
         </div>
       </div>
     </div>

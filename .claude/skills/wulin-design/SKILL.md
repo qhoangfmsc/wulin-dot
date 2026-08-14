@@ -130,6 +130,142 @@ bị `max-h-[85vh]` của `WuxiaModal` chặn lại như cũ. Muốn đổi mố
 này thì đo lại bằng Playwright (`getBoundingClientRect().height` trên từng
 tab) chứ đừng đoán số.
 
+**2026-08-13 (đợt 8)**: Dialogue-khi-vào-phòng tách hẳn khỏi `SubjectConfig`
+— trước đây phải gắn 1 vật thể (VD `company.png`) mới bắn được lời thoại,
+nên phòng trống không nói chuyện được, dù đó không phải giới hạn hợp lý
+(lời thoại là sự kiện của PHÒNG, không phải của vật trang trí trong phòng).
+`SubjectConfig` giờ chỉ còn = `ObstacleConfig` (thuần vật cản, không có
+field `dialogue` nữa). `MapModule` có thêm `dialoguesByCell?: Record<string,
+DialogueLine[]>`, ngang hàng `obstaclesByCell`/`subjectsByCell`/
+`monstersByCell` — bất kỳ cell nào cũng khai được, kể cả cell không có
+obstacle/subject nào. `MapScreen.tsx` đọc thẳng `map.dialoguesByCell?.[posKey]`
+thay vì dò tìm subject nào có `dialogue`; semantics 1-lần/session (theo dõi
+bằng `Set`, không persist) giữ nguyên. Đây là bước 1 của thiết kế lớn hơn
+(NPC tương tác theo khoảng cách + hệ thống quest, `modules/quest/`) — bước
+đó CHƯA làm, sẽ lên plan riêng khi tới lượt (pattern định hướng: proximity
+check kiểu `monster.ts`'s aggro/attack radius, callback Phaser→React kiểu
+`onReachEdge`, quest store kiểu `gainExp`/`rollDrop`). Xem mục 1 và mục 6.
+
+**2026-08-14 (đợt 9)**: 3 việc — kích thước quái, ảnh vỡ nét trên màn
+Retina, chết→respawn.
+- **Kích thước quái**: `MonsterSpawnConfig.displaySize?: number` đã tồn tại
+  từ trước (px, width — height tự suy theo tỉ lệ ảnh gốc) nhưng chưa ai set;
+  quái `deer_injured` ở `start.ts` giờ dùng nó (VD `100`/`120`) thay vì rơi
+  về mặc định 52px. Không thêm field `scale` kiểu hệ số nhân — giữ đúng
+  convention "kích thước tuyệt đối theo px" đã có (giống
+  `ObstacleConfig.width/height`).
+- **Ảnh vỡ nét (Retina)**: Phaser 4.2.1 không tự xử lý
+  `devicePixelRatio` — đã đọc thẳng `node_modules/phaser/src/scale/
+  ScaleManager.js` xác nhận chế độ `RESIZE` luôn set canvas backing-store =
+  CSS size, bỏ qua `zoom`, nên trên màn Retina ảnh bị kéo giãn mờ đều toàn
+  cảnh. Đổi `MapCanvas.tsx` sang `Phaser.Scale.NONE` + tự `resize(cssW*dpr,
+  cssH*dpr)` với `zoom: 1/dpr` — canvas backing-store nét hơn `dpr` lần
+  nhưng CSS/on-screen size không đổi. Bù lại: `mapScene.ts` nhận thêm option
+  `dpr` (từ `MapCanvas`), CHIA `this.scale.width/height` cho `dpr` ở chỗ
+  tính `roomWidth/roomHeight` (dòng ~186-191) để mọi toạ độ gameplay
+  (`xFrac`, `playMinX...Y`, aggro/attack radius...) giữ nguyên như `dpr=1`,
+  và NHÂN camera zoom (`setZoom`/lerp `targetZoom`) với `dpr` ở 2 chỗ gán
+  zoom duy nhất trong file — camera zoom "nhìn to lên" đúng bằng hệ số nét
+  thêm đó. Đụng lại camera zoom hay `this.scale.width/height` ở đâu khác thì
+  PHẢI áp dụng đúng 2 quy tắc này (chia cho tính toạ độ, nhân cho zoom),
+  không thì gameplay math sẽ lệch trên màn Retina. Kèm theo: `SPRITE_LOAD_WIDTH`
+  256→384 (đỡ mờ/alias khi thu nhỏ ảnh chi tiết), obstacle/monster load dùng
+  chung hằng số này thay vì hardcode `256` riêng.
+- **Chết → noti → respawn tại "X"**: trước đây HP về 0 chỉ lặng lẽ dịch về
+  giữa PHÒNG đang đứng, không thông báo. Giờ: `mapScene.ts`'s
+  `handlePossibleDeath` chỉ còn lo hồi máu + bất tử (đồng bộ, chặn trigger
+  lặp), rồi gọi `onPlayerDeath()` — callback mới, cùng pattern
+  `onReachEdge` (truyền qua `MapCanvas.tsx`, KHÔNG vào dependency array của
+  `useEffect`). `MapScreen.tsx`'s `handlePlayerDeath`: hiện
+  `DeathNotice.tsx` (component mới, cùng khuôn `TutorialOverlay` — tự tắt
+  sau 2500ms) NGAY (trước khi fade, để fade đen đọc được là do chết), fade
+  đen, rồi `setPosition(parsed.start)` (KHÔNG phải giữa phòng hiện tại) +
+  `setSpawnAt(null)` + tăng `respawnNonce` (state mới). `MapCanvas`'s `key`
+  đổi từ `posKey` thành `` `${posKey}-${respawnNonce}` `` — phòng trường hợp
+  chết ngay tại phòng X (cùng `posKey` nên bình thường không remount, nhân
+  vật Phaser kẹt ở vị trí chết); `respawnNonce` đảm bảo LUÔN remount lại khi
+  chết, dù chết ở đâu.
+
+**2026-08-14 (đợt 10)**: Hệ thống NPC + Nhiệm vụ (module mới) + 4 sửa nhỏ
+theo phản hồi thực tế.
+- **`modules/quest/`** (mới) — `types.ts` (`QuestId`, `QuestStatus =
+  "not_started"|"active"|"ready_to_turn_in"|"completed"`, `QuestDef` dạng
+  "đếm số tới ngưỡng": `targetCount`/`rewardExp`/`rewardCurrency` — CHƯA có
+  hệ "loại mục tiêu" tổng quát, cố tình để dành cho khi có quest dạng khác),
+  `data.ts` (`QUESTS`, quest đầu tiên `"first_deer_hunt"`), `store.ts` (persist,
+  `getQuestStatus`/`startQuest`/`reportQuestProgress`(chỉ cộng khi
+  `"active"`, tự chuyển `"ready_to_turn_in"` khi đủ `targetCount`)/
+  `completeQuest`, gọi qua `getState()`/`setState()` từ `mapScene.ts` — đúng
+  bridge pattern `liveHud.ts`).
+- **`modules/npc/`** (mới) — `types.ts` (`NpcId`, `NpcConfig` với
+  `questIds: QuestId[]` — MẢNG chứ không phải 1 quest, để NPC nhận thêm
+  quest sau không cần đổi type; 4 bộ dialogue theo trạng thái:
+  `introLines`/`activeLines`/`turnInLines`/`doneLines`), `data.ts` (NPC đầu
+  tiên `"turtle_guide"` = Cụ Quy), `npc.ts` — lớp Phaser `Npc` (bọc 1
+  `Actor` như `Monster`, đặt module riêng theo yêu cầu chứ không gộp vào
+  `world/monster.ts`) với 1 bubble thoại nổi trên đầu gộp CHUNG marker trạng
+  thái quest (?/…/! — ưu tiên `ready_to_turn_in` > `active` > `not_started`
+  trong số các `questIds`) VÀ tín hiệu "vào tầm nói chuyện được" (bubble
+  nhấp nháy sáng khi `isInRange`) — vẽ qua hàm dùng lại được
+  `createSpeechBubble()`, NPC thứ 2 sau này không viết lại phần vẽ.
+- **Gắn vào `mapScene.ts`**: thêm phím `space` vào `this.keys`; mỗi frame
+  `updateNpcInteraction()` tìm NPC gần nhất trong `talkRadius`
+  (`Phaser.Math.Distance.Between`, cùng pattern aggro radius của `Monster`),
+  gọi `npc.refreshMarker()`/`setInRange()`, và nếu
+  `Phaser.Input.Keyboard.JustDown(spaceKey)` + có NPC trong tầm → gọi
+  `onNpcInteract(npc.id)` (callback mới, cùng pattern `onReachEdge`/
+  `onPlayerDeath`, truyền qua `MapCanvas.tsx`). NPC cũng được đẩy vào
+  `obstacleRects` — chặn đường như obstacle thật, không cần logic va chạm
+  riêng. `MonsterSpawnConfig` thêm `questId?: QuestId` — quái tag quest nào
+  thì giết nó gọi `reportQuestProgress(questId, 1)` (trong nhánh giết quái
+  đã có, cạnh `gainExp`/`rollDrop`).
+- **Bug thật đã gặp và sửa: `onNpcInteract` bị đóng băng state cũ (stale
+  closure)** — `MapCanvas.tsx`'s `useEffect` cố tình KHÔNG đưa callback vào
+  dependency array (như `onReachEdge`/`onPlayerDeath`, tránh rebuild Phaser
+  scene liên tục), nhưng khác 2 callback đó (bắn 1 lần/gần như 1 lần mỗi
+  phòng), `onNpcInteract` bắn NHIỀU LẦN trong 1 lượt ở phòng và đúng-sai của
+  nó phụ thuộc đọc state MỚI NHẤT (`dialogueQueue`/`npcDialogue`/
+  `questOffer`) mỗi lần — closure đóng băng lúc mount khiến nó mãi mãi thấy
+  state lúc phòng vừa load, không bao giờ mở được dialogue. Sửa bằng
+  pattern ref chuẩn của React: `handleNpcInteractRef` cập nhật mỗi render
+  qua `useEffect` không deps, còn hàm ĐƯA VÀO Phaser
+  (`stableOnNpcInteract`, qua `useCallback([])`) chỉ gọi
+  `handleNpcInteractRef.current(...)` — identity không đổi (Phaser không
+  rebuild) nhưng luôn thực thi bản MỚI NHẤT của `handleNpcInteract`. Callback
+  nào truyền vào Phaser mà cần đọc state React thay đổi NHIỀU LẦN trong 1
+  phòng (không phải kiểu bắn-1-lần) đều phải theo pattern này, không phải
+  loại trừ khỏi dependency array là xong.
+- **Luồng hội thoại/nhận nhiệm vụ ở `MapScreen.tsx`**: `handleNpcInteract`
+  chọn quest "khẩn cấp nhất" trong `questIds` của NPC (đúng thứ tự ưu tiên
+  như marker), set `npcDialogue` (lines + phase). `handleNpcDialogueDone`:
+  `phase==="intro"` → mở `QuestOfferModal` (`WuxiaModal`-based, Nhận/Để
+  Sau); `phase==="turnIn"` → `completeQuest` + phát thưởng
+  (`gainExp`/`addCurrency` theo `QuestDef.rewardExp/rewardCurrency`) ngay
+  khi dialogue đóng, không cần modal xác nhận riêng cho lượt trả nhiệm vụ.
+- **Bonus — HUD dời góc trên-trái + `QuestTracker.tsx`/`MonsterTargetHud.tsx`
+  (mới)**: `PlayerStatusPanel.tsx` bỏ tự định vị (`fixed bottom-4 left-4` →
+  chỉ còn `relative`), `GameHud.tsx` bọc nó trong 1 wrapper `fixed left-4
+  top-4` — cùng hàng còn có `MonsterTargetHud` (quái đang trong tầm
+  auto-attack của người chơi, đọc `modules/world/combatTarget.ts` — store
+  mới, session-only, `mapScene.ts` ghi trực tiếp mỗi frame từ
+  `findNearestAliveMonsterInRange()`; `Monster` có thêm getter public `hp`
+  — field private đổi tên `currentHp` để tránh đụng tên), `QuestTracker`
+  nằm dưới cả hai (đọc `useQuestStore`, chỉ hiện quest `active`/
+  `ready_to_turn_in`, không vẽ khung khi rỗng).
+- **4 sửa theo phản hồi playtest thật**:
+  1. `TutorialOverlay` (hướng dẫn di chuyển) trước đây chỉ ẩn khi có
+     `dialogueQueue` (thoại phòng) — quên `npcDialogue`/`questOffer`, nên
+     nói chuyện với NPC có thể vô tình kéo tutorial ra cùng lúc. Thêm 2
+     điều kiện đó vào guard.
+  2. `StoryIntroScreen.tsx` (màn "Đùng... một vụ nổ lớn") thêm nút "Bỏ Qua"
+     góc trên-phải, bấm là `onContinue()` ngay, không cần đợi hết
+     shake+fade-in+prompt.
+  3. `DialogueBox.tsx` tự động sang câu tiếp theo sau `AUTO_ADVANCE_MS`
+     (5000ms) nếu người chơi không bấm Space — hết dòng cuối thì tự tắt
+     luôn, giống hệt cách `TutorialOverlay` tự tắt. Tránh kẹt màn hình vô
+     hạn nếu quên bấm.
+  4. `MonsterTargetHud.tsx` — xem mục Bonus ở trên.
+
 ## 1. Kiến trúc module — không thương lượng
 
 - Domain code nằm trong `src/modules/<domain>/`: `world` (bản đồ, di chuyển,
@@ -142,7 +278,11 @@ tab) chứ đừng đoán số.
   (`useFriendsStore` persist, rỗng cho tới khi có hạ tầng multiplayer),
   `intro` (luồng tap/story mở đầu, KHÔNG có domain data — chỉ `components/`),
   `pet`/`mount` (mỗi thứ hiện chỉ 1-2 file `types.ts`/`data.ts` rỗng/tối
-  giản, chưa có cơ chế/data thật — xem mục 6). Type + component + data + store của 1
+  giản, chưa có cơ chế/data thật — xem mục 6), `npc` (identity + dialogue
+  NPC, `npc.ts` là lớp Phaser — đặt module riêng dù Phaser-coupled như
+  `Monster`, vì NPC là mối quan tâm khác — dẫn dắt cốt truyện, không phải
+  combat), `quest` (persist, trạng thái/tiến trình nhiệm vụ, xem đợt 10).
+  Type + component + data + store của 1
   domain nằm trong thư mục riêng của nó, không import chéo data layer bừa
   giữa các domain — hướng import CHỈ ĐƯỢC 1 CHIỀU khi 1 domain cần đọc domain
   khác (VD `character/store.ts` → `inventory` để cộng bonus vũ khí,
@@ -408,11 +548,16 @@ Chờ song song nào khác.
   (`xFrac`/`yFrac`, 0-1), không phải pixel cứng** — giữ đúng vị trí tương
   đối khi phòng đổi size theo `roomScale`/viewport. Chưa có `spriteSrc` thì
   cứ để trống, tự fallback hình chữ nhật xám.
-- **Vật thể cốt truyện (`SubjectConfig`, mở rộng từ `ObstacleConfig`)** —
-  chặn đường giống obstacle bình thường, nhưng có thêm `dialogue?:
-  DialogueLine[]` bắn 1 lần duy nhất qua `DialogueBox` khi người chơi đến
-  đúng phòng chứa nó lần đầu (theo dõi bằng 1 `Set` session, không persist).
-  VD hiện có: `company.png` ở phòng bắt đầu.
+- **Vật thể trang trí (`SubjectConfig` = `ObstacleConfig`)** — chặn đường
+  giống obstacle bình thường, KHÔNG mang dialogue (đợt 8: dialogue tách khỏi
+  vật thể — xem bullet dialogue riêng bên dưới). VD hiện có: `company.png`
+  ở phòng bắt đầu.
+- **Dialogue vào-phòng (`MapModule.dialoguesByCell`)** — 1 chuỗi
+  `DialogueLine[]` khai theo `"row-col"`, bắn 1 lần duy nhất qua
+  `DialogueBox` khi người chơi đến đúng phòng đó lần đầu (theo dõi bằng 1
+  `Set` session, không persist). Là thuộc tính của PHÒNG, không phải của vật
+  thể nào đặt trong đó — phòng trống (không obstacle/subject) vẫn khai được.
+  VD hiện có: phòng bắt đầu của `start.ts`.
 - **Nhạc nền theo map, loop bằng `<audio>` của React, KHÔNG phải Phaser sound
   manager** (`useMapMusic(playlist, mapKey)`, `modules/world/useMapMusic.ts`)
   — lý do: `MapCanvas` bị destroy/recreate mỗi lần đổi phòng
@@ -514,6 +659,34 @@ Chờ song song nào khác.
   — **KHÔNG còn rớt đồ (item) trực tiếp nữa**, đồ chỉ ra được từ Triệu Hồi
   (xem dưới). Rớt gì thì cộng thẳng vào túi đồ + hiện chữ nổi báo
   (`spawnDamageText` màu khác).
+- **Quái to/nhỏ chỉnh qua `MonsterSpawnConfig.displaySize?: number`** (px,
+  width — height tự suy theo tỉ lệ ảnh gốc), không phải hệ số scale. Mặc
+  định 52px nếu bỏ trống.
+- **Canvas Phaser render ở độ phân giải `devicePixelRatio` (Retina-sharp),
+  không phải 1:1 CSS px** (`MapCanvas.tsx`, chế độ `Phaser.Scale.NONE` +
+  `zoom: 1/dpr`) — camera zoom trong `mapScene.ts` đã nhân bù `dpr` sẵn, mọi
+  toạ độ gameplay khác giữ nguyên. Xem đợt 9 ở đầu file nếu cần đụng lại chỗ
+  này.
+- **Chết (HP về 0) → hiện `DeathNotice` ("Bạn Đã Gục Ngã") → fade đen →
+  respawn tại Ô "X" của map (KHÔNG phải giữa phòng vừa chết)**, máu đầy,
+  tiến trình nhân vật (cấp/điểm/EXP) không bị đụng. Bắn qua callback
+  `onPlayerDeath` (`mapScene.ts` → `MapCanvas.tsx` → `MapScreen.tsx`, cùng
+  pattern `onReachEdge`).
+- **NPC + Nhiệm vụ** (`modules/npc/`, `modules/quest/`, đợt 10) — NPC đặt
+  qua `MapModule.npcsByCell`, lại gần (`talkRadius`, mặc định 120) bấm Space
+  nói chuyện (bubble thoại trên đầu vừa là marker trạng thái quest ?/…/!
+  vừa nhấp nháy khi vào tầm). Nội dung + phase (giới thiệu/nhắc nhở/trả
+  thưởng/hết việc) phụ thuộc `QuestStatus`; nhận nhiệm vụ qua
+  `QuestOfferModal`, trả thưởng tự động khi dialogue trả nhiệm vụ đóng.
+  Quái tag `questId` thì chết mới cộng tiến trình. `QuestTracker.tsx` (HUD,
+  góc trên-trái dưới `PlayerStatusPanel`) chỉ hiện quest đang làm/sẵn sàng
+  trả. Xem đợt 10 ở đầu file — đặc biệt lưu ý phần "stale closure" nếu định
+  thêm callback Phaser→React mới mà React cần đọc state thay đổi nhiều lần
+  trong 1 phòng.
+- **HUD quái đang đánh (`MonsterTargetHud.tsx`, đợt 10)** — nằm cạnh
+  `PlayerStatusPanel` (góc trên-trái), hiện quái gần nhất trong tầm
+  auto-attack (đọc `modules/world/combatTarget.ts`, `mapScene.ts` ghi mỗi
+  frame), tự ẩn khi không có quái nào trong tầm.
 - **Triệu Hồi (`SummonPanel.tsx`, `modules/summon/`)** — tiêu 1 Thẻ Triệu
   Hồi (`spendSummonCard()`) ra 1 vũ khí ngẫu nhiên có **phẩm chất**
   (`Rarity`: Thường/Hiếm/Sử Thi/Huyền Thoại, `RARITY_CONFIG` trong

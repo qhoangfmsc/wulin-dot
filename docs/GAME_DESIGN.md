@@ -1,11 +1,57 @@
 # Wulin.io — Tài liệu thiết kế game
 
-> Cập nhật lần cuối: 2026-08-13 (đợt 7) — `CharacterPanel`'s khối nội dung
+> Cập nhật lần cuối: 2026-08-14 (đợt 10) — Hệ thống NPC + Nhiệm vụ (2 module
+> mới: `modules/npc/`, `modules/quest/`) + 4 sửa theo playtest thật. NPC đầu
+> tiên "Cụ Quy" (rùa) ở phòng `0-2` — lại gần bấm Space nói chuyện, bubble
+> thoại trên đầu vừa là marker trạng thái quest (?/…/!) vừa nhấp nháy khi
+> vào tầm; nhận nhiệm vụ "Diệt 5 Con Nai Đột Biến" qua `QuestOfferModal`,
+> quái ở phòng `1-2` tag `questId` nên chết mới cộng tiến trình, trả nhiệm
+> vụ tự động phát thưởng khi dialogue đóng. Bug thật đã gặp và sửa: callback
+> `onNpcInteract` bị đóng băng state cũ (React) do `useEffect` không đưa nó
+> vào dependency array (giống `onReachEdge` cố ý) nhưng — khác 2 callback
+> đó — nó bắn nhiều lần/phòng và cần đọc state MỚI mỗi lần; sửa bằng ref
+> pattern chuẩn của React (`useRef` cập nhật mỗi render + `useCallback([])`
+> làm cầu nối ổn định). Bonus: HUD dời lên góc trên-trái
+> (`PlayerStatusPanel` không còn tự định vị), `QuestTracker.tsx` (theo dõi
+> nhiệm vụ) + `MonsterTargetHud.tsx` (quái đang trong tầm đánh, mới) đặt
+> cạnh/dưới nó. 4 sửa theo phản hồi: tutorial di chuyển không còn che
+> dialogue NPC; màn "Đùng... một vụ nổ lớn" có nút Bỏ Qua; mọi khung thoại
+> tự chuyển câu sau 5s nếu quên bấm Space, hết thoại tự tắt. Xem mục "Đã
+> có".
+>
+> Cập nhật trước đó (2026-08-14, đợt 9) — 3 việc: (1) quái chỉnh kích thước
+> qua `MonsterSpawnConfig.displaySize` (px, đã có sẵn field, chỉ cần set —
+> quái `deer_injured` ở `start.ts` giờ 100-120px thay vì mặc định 52px);
+> (2) sửa ảnh vỡ nét trên màn Retina — Phaser không tự xử lý
+> `devicePixelRatio`, `MapCanvas.tsx` đổi sang `Phaser.Scale.NONE` + tự
+> resize canvas backing-store lớn hơn CSS size theo `dpr` (`zoom: 1/dpr` giữ
+> nguyên kích thước hiển thị), `mapScene.ts` bù lại bằng cách chia
+> `this.scale.width/height` cho `dpr` khi tính kích thước phòng và nhân
+> camera zoom với `dpr` — mọi toạ độ gameplay khác không đổi; kèm
+> `SPRITE_LOAD_WIDTH` 256→384 để nguồn ảnh có thêm chi tiết trước khi thu
+> nhỏ; (3) chết (HP về 0) giờ hiện noti `DeathNotice` ("Bạn Đã Gục Ngã") rồi
+> fade đen về respawn tại đúng Ô "X" (ô xuất phát) của map, không còn lặng
+> lẽ dịch về giữa phòng vừa chết như trước — qua callback `onPlayerDeath`
+> mới (cùng pattern `onReachEdge`). Xem mục "Đã có".
+>
+> Cập nhật trước đó (2026-08-13, đợt 8) — Dialogue-khi-vào-phòng tách hẳn
+> khỏi `SubjectConfig` (vật thể trang trí). Trước đây phải gắn 1 vật thể
+> (VD `company.png`) mới bắn được lời thoại — phòng trống không nói chuyện
+> được, dù lời thoại là sự kiện của PHÒNG chứ không phải của vật trang trí
+> trong đó. `SubjectConfig` giờ chỉ còn = `ObstacleConfig` (thuần vật cản).
+> `MapModule` có thêm `dialoguesByCell?: Record<string, DialogueLine[]>`,
+> ngang hàng `obstaclesByCell`/`subjectsByCell`/`monstersByCell` — bất kỳ
+> cell nào cũng khai được, kể cả cell không có obstacle/subject nào.
+> Semantics giữ nguyên: 1 lần/session, theo dõi bằng `Set`, không persist.
+> Bước 1 của thiết kế lớn hơn (NPC tương tác theo khoảng cách + hệ thống
+> quest) — bước đó chưa làm. Xem mục "Đã có".
+>
+> Cập nhật trước đó (2026-08-13, đợt 7) — `CharacterPanel`'s khối nội dung
 > tab bọc thêm `min-h-97.5` (=390px, đo bằng Playwright, khớp chiều cao tab
 > "Chỉ Số") — tab "Cài Đặt" ngắn hơn nhiều (1 hàng toggle) nên trước đó đổi
 > tab làm modal co/giãn đột ngột ("giật"). Chỉ đặt SÀN chiều cao, tab "Nhân
 > Vật" (danh sách nhân vật) vẫn tự cao hơn khi cần, vẫn bị `max-h-[85vh]`
-> của `WuxiaModal` chặn lại như cũ. Xem mục "Đã có".
+> của `WuxiaModal` chặn lại như cũ.
 >
 > Cập nhật trước đó (2026-08-13, đợt 6) — thêm Cài Đặt (tắt/mở nhạc nền) vào
 > modal "Nhân Vật" dưới dạng tab thứ 3, nhưng KHÔNG phải hàng pill-tab BÊN
@@ -314,8 +360,8 @@ src/
       DialogueBox.tsx        # hộp thoại wuxia (giấy da, viền mực đôi) — 1
                                # dòng/lượt, portrait+tên đặt bên trái hoặc
                                # phải theo `DialogueLine.side`, tap/Space để
-                               # tiếp tục. Dùng bởi thoại cốt truyện gắn ở
-                               # `SubjectConfig.dialogue` (xem `modules/world/maps`)
+                               # tiếp tục. Dùng bởi thoại vào-phòng khai ở
+                               # `MapModule.dialoguesByCell` (xem `modules/world/maps`)
       ExperienceBar.tsx      # thanh EXP full-width, fixed đáy màn hình —
                                # đọc `modules/world/liveHud.ts`
       PlayerStatusPanel.tsx   # HUD góc dưới-trái: avatar (ảnh nhân vật đang
@@ -416,7 +462,7 @@ src/
                                # — mount MapCanvas (dynamic import, ssr:false)
                                # + TutorialOverlay (nếu `showTutorial`) +
                                # DialogueBox (khi vào phòng có
-                               # `SubjectConfig.dialogue` lần đầu) +
+                               # `MapModule.dialoguesByCell` lần đầu) +
                                # `GameHud`/`ExperienceBar` + `useMapMusic` +
                                # lớp fade đen (GSAP opacity) khi đổi phòng.
                                # `floorSrc`/`wallSrc`/`tint` của mỗi phòng
@@ -462,10 +508,11 @@ src/
                                  # "demo". `types.ts` (MapModule/SubjectConfig/
                                  # DialogueLine/RoomVisualStyle), `start.ts`
                                  # (map hiện tại: grid, obstaclesByCell,
-                                 # subjectsByCell với `company.png` + thoại 3
-                                 # dòng tiếng Việt, roomStyles theo loại
-                                 # phòng, floorOverridesByCell, music
-                                 # `start.mp3`, showTutorial: true),
+                                 # subjectsByCell với `company.png` (thuần
+                                 # vật cản), dialoguesByCell với thoại 2
+                                 # dòng tiếng Việt ở phòng bắt đầu, roomStyles
+                                 # theo loại phòng, floorOverridesByCell,
+                                 # music `start.mp3`, showTutorial: true),
                                  # `index.ts` (MAP_MODULES/MAP_ORDER — thêm
                                  # map mới = thêm module + 1 dòng ở đây,
                                  # không sửa `MapScreen`)
@@ -796,14 +843,17 @@ combat...), giữ đúng cấu trúc thư mục này.
     cản thì trượt dọc theo nó thay vì đứng khựng lại. Mỗi map module có
     `obstaclesByCell` (map theo `"row-col"`) — map `start` có 2 vật cản
     (fallback hình chữ nhật xám) trong phòng bắt đầu (`"0-1"`).
-  - **Vật thể cốt truyện (`SubjectConfig`)** — mở rộng `ObstacleConfig`
-    (chặn di chuyển y hệt), thêm `dialogue?: DialogueLine[]` tuỳ chọn: nếu
-    có, bắn 1 lần duy nhất qua `DialogueBox` khi người chơi tới đúng phòng
-    chứa nó lần đầu (theo dõi bằng 1 `Set` session trong `MapScreen`, không
-    persist). Khai báo ở `subjectsByCell` của map module. VD hiện có:
-    `company.png` (tòa nhà đổ nát, `public/subject/company.png`) đặt ở
-    phòng bắt đầu map `start`, kể 3 câu thoại tiếng Việt đơn giản về việc
-    nhân vật bị đẩy về Wulin.
+  - **Vật thể trang trí (`SubjectConfig`)** — nay chỉ còn = `ObstacleConfig`
+    (thuần vật cản, không mang dialogue — xem đợt 8 ở đầu file). Khai báo ở
+    `subjectsByCell` của map module. VD hiện có: `company.png` (tòa nhà đổ
+    nát, `public/subject/company.png`) đặt ở phòng bắt đầu map `start`.
+  - **Dialogue vào-phòng (`MapModule.dialoguesByCell`)** — 1 chuỗi
+    `DialogueLine[]` khai theo `"row-col"`, bắn 1 lần duy nhất qua
+    `DialogueBox` khi người chơi tới đúng phòng đó lần đầu (theo dõi bằng 1
+    `Set` session trong `MapScreen`, không persist). Là thuộc tính của
+    PHÒNG — không cần vật thể nào đặt trong phòng để bắn được, phòng trống
+    vẫn khai được. VD hiện có: phòng bắt đầu map `start` kể 2 câu thoại
+    tiếng Việt đơn giản về việc nhân vật bị đẩy về Wulin.
   - **`DialogueBox`**: hộp thoại wuxia (giấy da gradient, viền mực đôi
     `#7a5230`), portrait tròn (LUÔN hiện — icon người mặc định nếu không có
     `portraitSrc`, kể cả lời thoại của chính người chơi) + tên đặt bên trái
@@ -928,16 +978,29 @@ combat...), giữ đúng cấu trúc thư mục này.
     cấp khi đủ ngưỡng, +5 điểm chỉ số mỗi cấp, tăng dần `expToNext`), đồng
     thời roll rớt đồ (xem dưới).
 - **Máu người chơi là state thật** (`useLiveHudStore`'s `hp`, không còn mock
-  tĩnh) — về 0 thì hồi sinh giữa phòng (`handlePossibleDeath()` trong
-  `mapScene.ts`), đầy máu lại, có `RESPAWN_INVULN_MS` (1.2s) bất tử (quái vẫn
-  đứng cạnh nhưng không gây sát thương trong lúc này). `maxHp` không tự đứng
-  một mình — đồng bộ từ `character/store.ts`'s `getEffectiveStats().maxHp`
-  qua `setMaxHp()` mỗi khi lên cấp/cộng điểm/đổi vũ khí/đổi nhân vật.
+  tĩnh) — về 0 thì `handlePossibleDeath()` (`mapScene.ts`) hồi đầy máu +
+  `RESPAWN_INVULN_MS` (1.2s) bất tử NGAY (đồng bộ, chặn trigger lặp), rồi
+  gọi `onPlayerDeath()` để React lo phần còn lại: hiện `DeathNotice`
+  ("Bạn Đã Gục Ngã", tự tắt sau 2.5s) rồi fade đen về **Ô "X"
+  (ô xuất phát) của map** — KHÔNG còn hồi sinh giữa phòng vừa chết như bản
+  cũ (2026-08-14 đợt 9, xem thêm subsection riêng dưới). `maxHp` không tự
+  đứng một mình — đồng bộ từ `character/store.ts`'s
+  `getEffectiveStats().maxHp` qua `setMaxHp()` mỗi khi lên cấp/cộng điểm/đổi
+  vũ khí/đổi nhân vật.
 - **Khai báo quái trong map module** qua `MapModule.monstersByCell` (giống
   hệt `obstaclesByCell`/`subjectsByCell`, key `"row-col"`) —
-  `MonsterSpawnConfig` (vị trí theo tỉ lệ, sprite, hp/damage/moveSpeed/
-  aggroRadius/attackRadius/attackIntervalMs/expReward). Map `start` có 2 con
-  zombie (`character/ingame/zombie.png`) ở phòng `"0-1"`.
+  `MonsterSpawnConfig` (vị trí theo tỉ lệ, sprite, `displaySize?` tuỳ chọn —
+  px width, mặc định 52 nếu bỏ trống — hp/damage/moveSpeed/aggroRadius/
+  attackRadius/attackIntervalMs/expReward). Map `start` có 3 con
+  `deer_injured` (`villain/deer_injured.png`, `displaySize` 100-120) ở phòng
+  `"0-1"`.
+- **Canvas Phaser render Retina-sharp, không phải 1:1 CSS px** (đợt 9) —
+  `MapCanvas.tsx` dùng `Phaser.Scale.NONE` + tự resize canvas backing-store
+  lớn hơn CSS size theo `window.devicePixelRatio`, `zoom: 1/dpr` giữ nguyên
+  kích thước hiển thị trên màn hình. `mapScene.ts` nhận option `dpr`, chia
+  `this.scale.width/height` cho `dpr` khi tính `roomWidth/roomHeight` (để
+  mọi toạ độ gameplay không đổi) và nhân camera zoom với `dpr` (để lấp đầy
+  backing-store lớn hơn đó) — xem SKILL.md đợt 9 nếu cần đụng lại 2 chỗ này.
 - **Vật cản trong phòng bắt đầu dùng ảnh thật** thay vì khối xám placeholder:
   `rock.png`/`big_bush.png`/`small_bush.png` (`public/subject/`).
 
@@ -1142,6 +1205,108 @@ combat...), giữ đúng cấu trúc thư mục này.
   tab Cài Đặt (ngắn nhất) được đẩy lên bằng mức Chỉ Số. Muốn đổi tab mặc
   định hoặc thêm tab mới cao/thấp hơn hẳn thì đo lại mốc này, đừng giữ
   nguyên số cũ mà không kiểm tra.
+
+### Hệ thống NPC + Nhiệm vụ (2026-08-14 đợt 10)
+
+- **`modules/npc/`** (mới) — `types.ts`: `NpcId` (literal union), `NpcConfig`
+  (`name`/`spriteSrc`/`portraitSrc`/`questIds: QuestId[]` — MẢNG để nhận
+  thêm quest sau không đổi type — /`introLines`/`activeLines`/
+  `turnInLines`/`doneLines`, mỗi bộ là `DialogueLine[]`), `NpcSpawnConfig`
+  (`xFrac`/`yFrac`/`npcId`/`displaySize?`/`talkRadius?`). `data.ts`: NPC đầu
+  tiên `"turtle_guide"` = Cụ Quy (`character/ingame/turtle.png`), đặt ở
+  `start.ts`'s `npcsByCell["0-2"]`. `npc.ts`: lớp Phaser `Npc` — bọc 1
+  `Actor` (như `Monster`), vẽ 1 "bubble thoại" phía trên đầu qua hàm dùng
+  lại được `createSpeechBubble()` (Graphics bo góc + đuôi trỏ xuống, không
+  cần asset ảnh, cùng tinh thần CSS-only-fallback của `WuxiaTooltip`). Bubble
+  gộp CHUNG 2 việc: hiện glyph trạng thái quest "khẩn cấp nhất" trong số
+  `questIds` của NPC (`refreshMarker()`: `?` vàng = chưa nhận, `…` trắng =
+  đang làm, `!` cam = sẵn sàng trả, ẩn hẳn nếu mọi quest đã xong) VÀ nhấp
+  nháy sáng lên (`setInRange()`, tween alpha/scale yoyo lặp) khi người chơi
+  đứng trong `talkRadius` (mặc định 120px) — báo "bấm Space nói chuyện
+  được" mà không cần chữ hint riêng.
+- **`modules/quest/`** (mới) — `types.ts`: `QuestId`, `QuestStatus =
+  "not_started"|"active"|"ready_to_turn_in"|"completed"`, `QuestDef` dạng
+  "đếm số tới ngưỡng" (`targetCount`/`rewardExp`/`rewardCurrency`) — CHƯA
+  xây hệ "loại mục tiêu" tổng quát (hộ tống, khảo sát...) vì chưa có ví dụ
+  thật thứ 2, cố tình để dành. `data.ts`: quest đầu tiên `"first_deer_hunt"` =
+  "Diệt 5 Con Nai Đột Biến". `store.ts` (persist): `getQuestStatus`/
+  `startQuest`/`reportQuestProgress` (chỉ cộng khi status hiện tại là
+  `"active"` — quái chết trước khi nhận nhiệm vụ không tự tính; tự chuyển
+  `"ready_to_turn_in"` khi đạt `targetCount`)/`completeQuest`.
+- **Gắn vào world runtime**: `MapModule` thêm `npcsByCell`; `MonsterSpawnConfig`
+  thêm `questId?: QuestId` (quái tag quest nào, chết mới gọi
+  `reportQuestProgress(questId, 1)`, trong đúng nhánh giết-quái sẵn có cạnh
+  `gainExp`/`rollDrop`). `mapScene.ts` đăng ký thêm phím `space`; mỗi frame
+  `updateNpcInteraction()` tìm NPC gần nhất trong tầm (mirror
+  `findNearestAliveMonsterInRange`), gọi `refreshMarker()`/`setInRange()`
+  cho MỌI NPC trong phòng, và nếu có NPC trong tầm + Space vừa nhấn
+  (`Phaser.Input.Keyboard.JustDown`) thì gọi callback `onNpcInteract(npcId)`
+  — thêm mới, xuyên `MapCanvas.tsx` vào `MapScreen.tsx`, cùng pattern
+  `onReachEdge`/`onPlayerDeath`. NPC cũng được đẩy vào `obstacleRects` —
+  chặn đường như người thật, dùng lại collision có sẵn.
+- **Luồng hội thoại → nhận/trả nhiệm vụ ở `MapScreen.tsx`**:
+  `handleNpcInteract` chọn quest "khẩn cấp nhất" của NPC (ưu tiên
+  `ready_to_turn_in` > `active` > `not_started`, hết thì dùng `doneLines`),
+  set state `npcDialogue` (tái dùng nguyên `DialogueBox`, không sửa file
+  đó). `handleNpcDialogueDone`: hết thoại giới thiệu (`phase==="intro"`) →
+  mở `QuestOfferModal.tsx` (mới, dựa `WuxiaModal`, 2 nút "Nhận Nhiệm Vụ"/
+  "Để Sau"); hết thoại trả nhiệm vụ (`phase==="turnIn"`) → `completeQuest` +
+  phát thưởng (`gainExp`/`addCurrency` theo số trong `QuestDef`) NGAY khi
+  đóng, không cần modal xác nhận riêng cho lượt trả.
+- **Bug thật đã gặp và sửa: `onNpcInteract` đóng băng state cũ (stale
+  closure)** — `MapCanvas.tsx`'s `useEffect` không đưa callback prop vào
+  dependency array, y hệt cách `onReachEdge`/`onPlayerDeath` đã làm (tránh
+  Phaser scene bị rebuild liên tục mỗi lần state đổi). NHƯNG 2 callback đó
+  chỉ bắn ~1 lần/phòng và không cần đọc state React thay đổi giữa các lần
+  gọi, còn `onNpcInteract` bắn NHIỀU LẦN trong 1 lượt ở phòng (mỗi lần bấm
+  Space gần NPC) và tính đúng-sai của nó phụ thuộc HOÀN TOÀN vào đọc đúng
+  `dialogueQueue`/`npcDialogue`/`questOffer` MỚI NHẤT mỗi lần — do đóng
+  băng closure lúc Phaser scene mount, nó mãi mãi thấy state của đúng
+  khoảnh khắc phòng vừa load (gần như luôn `null`), khiến dialogue set xong
+  bị guard chặn ngay sau đó ở LẦN GỌI TIẾP THEO trong cùng closure cũ —
+  debug bằng cách thêm `console.log` tạm trong `updateNpcInteraction()`
+  mới lộ ra: Phaser vẫn gọi `onNpcInteract` đúng, chỉ là React nhận nhầm
+  state. **Sửa bằng ref pattern chuẩn của React**: `handleNpcInteractRef`
+  (một `useRef`) được gán lại giá trị mới nhất mỗi render qua 1
+  `useEffect(() => { ref.current = handleNpcInteract; })` (KHÔNG gán trực
+  tiếp lúc render — React 19 chặn "Cannot access refs during render"), còn
+  hàm THẬT SỰ đưa vào Phaser (`stableOnNpcInteract`, tạo bằng
+  `useCallback(..., [])`) chỉ gọi `handleNpcInteractRef.current(npcId)` —
+  identity không đổi (Phaser không rebuild) nhưng luôn thực thi bản mới
+  nhất. **Bài học chung**: loại trừ 1 callback khỏi dependency array chỉ an
+  toàn khi callback đó KHÔNG cần đọc state thay đổi nhiều lần trong cùng 1
+  lượt mount — nếu có, phải qua ref như trên, không phải "theo đúng
+  pattern cũ" là xong.
+- **Bonus — HUD dời góc trên-trái + theo dõi nhiệm vụ + HUD quái đang
+  đánh**: `PlayerStatusPanel.tsx` bỏ tự định vị (`fixed bottom-4 left-4` →
+  chỉ còn `relative`) — comment cập nhật "Not self-positioned", đúng pattern
+  `GridMinimap` đã có. `GameHud.tsx` bọc nó trong wrapper `fixed left-4
+  top-4 z-20 flex flex-col`, hàng đầu là `flex` ngang gồm
+  `PlayerStatusPanel` + `MonsterTargetHud.tsx` (mới, quái gần nhất trong
+  tầm auto-attack — đọc `modules/world/combatTarget.ts`, store session-only
+  mới, `mapScene.ts` ghi `setCombatTarget(hp, maxHp, spriteSrc)`/
+  `clearCombatTarget()` mỗi frame trong `updateCombat()` dựa
+  `findNearestAliveMonsterInRange()`; `Monster` thêm getter public `hp` —
+  field private đổi tên thành `currentHp` để không đụng tên với getter),
+  `QuestTracker.tsx` (mới, chỉ hiện quest `active`/`ready_to_turn_in`,
+  không vẽ khung khi rỗng) nằm dưới hàng đó.
+- **4 sửa theo phản hồi playtest thật**:
+  1. `TutorialOverlay` trước chỉ ẩn khi có `dialogueQueue` (thoại phòng) —
+     thiếu `npcDialogue`/`questOffer` nên nói chuyện NPC có thể vô tình kéo
+     tutorial hướng dẫn di chuyển ra cùng lúc. Thêm 2 điều kiện vào guard ở
+     `MapScreen.tsx`.
+  2. `StoryIntroScreen.tsx` (màn "Đùng... một vụ nổ lớn") thêm nút "Bỏ Qua"
+     góc trên-phải — bấm là `onContinue()` ngay, không cần đợi hết
+     shake+fade-in+prompt "Chạm để tiếp tục".
+  3. `DialogueBox.tsx` thêm `AUTO_ADVANCE_MS = 5000` — tự sang câu kế tiếp
+     nếu người chơi không bấm Space trong 5s, hết dòng cuối thì tự tắt luôn
+     (giống hệt cách `TutorialOverlay` tự tắt) — tránh kẹt màn hình vô hạn
+     nếu quên bấm.
+  4. `MonsterTargetHud.tsx` — xem mục Bonus ở trên.
+- **Map**: `start.ts` thêm `npcsByCell["0-2"]` (Cụ Quy), `monstersByCell["1-2"]`
+  (5 con `deer_injured`, mỗi con `questId: "first_deer_hunt"`, rải khắp phòng),
+  `obstaclesByCell["1-2"]` (9 đá/bụi trang trí) — KHÔNG đụng
+  `monstersByCell["0-1"]` (chỗ user tự chỉnh số liệu để test riêng).
 
 ## 4. Animation — quy ước & vị trí
 

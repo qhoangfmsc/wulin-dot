@@ -95,7 +95,7 @@ export function BagPanel({ onClose }: { onClose: () => void }) {
           Chưa có vũ khí nào — sang Tiệm Triệu Hồi dùng Thẻ Triệu Hồi để ra đồ ngẫu nhiên.
         </p>
       ) : (
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-6 gap-3">
           {items.map((item, i) => {
             const equipped = equippedItemId === item.id;
             const col = i % GRID_COLS;

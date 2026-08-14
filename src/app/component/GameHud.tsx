@@ -4,6 +4,8 @@ import { useState } from "react";
 import type { GridCell } from "@/modules/world/mapGrid";
 import type { PanelId } from "./hubPanelId";
 import { PlayerStatusPanel } from "./PlayerStatusPanel";
+import { MonsterTargetHud } from "./MonsterTargetHud";
+import { QuestTracker } from "./QuestTracker";
 import { ShelfNav } from "./ShelfNav";
 import { SummonQuickButton } from "./SummonQuickButton";
 import { GridMinimap } from "./GridMinimap";
@@ -14,8 +16,9 @@ import { SummonPanel } from "./SummonPanel";
 import { PetPanel } from "./PetPanel";
 import { MountPanel } from "./MountPanel";
 
-/** The whole HUD layer, in one place: bottom-left status box
- * (`PlayerStatusPanel`), top-center feature shelf (`ShelfNav`), top-right
+/** The whole HUD layer, in one place: top-left column (`PlayerStatusPanel`
+ * + `MonsterTargetHud` side by side, `QuestTracker` below both), top-center
+ * feature shelf (`ShelfNav`), top-right
  * stack (`SummonQuickButton` above `GridMinimap`), and whichever hub panel
  * is currently open. `activePanel` is the single piece of state deciding
  * that — every trigger (HUD box, shelf bubble, summon button, or
@@ -41,7 +44,13 @@ export function GameHud({
 
   return (
     <>
-      <PlayerStatusPanel onOpenCharacter={() => setActivePanel("character")} />
+      <div className="pointer-events-none fixed left-4 top-4 z-20 flex flex-col items-start gap-2">
+        <div className="flex items-start gap-2">
+          <PlayerStatusPanel onOpenCharacter={() => setActivePanel("character")} />
+          <MonsterTargetHud />
+        </div>
+        <QuestTracker />
+      </div>
       <ShelfNav onNavigate={setActivePanel} />
       <div className="pointer-events-none fixed right-4 top-4 z-20 flex items-start gap-2">
         {/* Quick-access icons (currently just Triệu Hồi — room for more

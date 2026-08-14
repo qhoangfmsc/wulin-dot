@@ -55,6 +55,17 @@ export function StoryIntroScreen({ onContinue }: { onContinue: () => void }) {
       <Image src="/story/explode_introduction.png" alt="" fill priority sizes="100vw" className="object-cover" />
       <div className="absolute inset-0 bg-linear-to-t from-zinc-950 via-zinc-950/55 to-zinc-950/10" />
 
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onContinue();
+        }}
+        className="absolute right-6 top-6 z-20 rounded-full border border-zinc-500/60 px-4 py-2 text-sm tracking-[0.2em] text-zinc-300 transition-colors hover:border-zinc-300 hover:text-white"
+      >
+        Bỏ Qua
+      </button>
+
       <div className="relative z-10 mb-16 flex max-w-3xl flex-col items-center gap-10 px-6 text-center">
         {LINES.map((line) => (
           <p key={line} className="story-line text-[28px] leading-relaxed text-zinc-200 drop-shadow">
@@ -64,7 +75,7 @@ export function StoryIntroScreen({ onContinue }: { onContinue: () => void }) {
       </div>
 
       {showPrompt && (
-        <p className="font-p22 relative z-10 mb-8 animate-pulse text-xl uppercase tracking-[0.3em] text-zinc-400">
+        <p className="relative z-10 mb-8 animate-pulse text-xl tracking-[0.3em] text-zinc-400">
           Chạm để tiếp tục
         </p>
       )}

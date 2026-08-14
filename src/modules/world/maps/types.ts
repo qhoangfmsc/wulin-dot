@@ -1,6 +1,7 @@
 import type { ObstacleConfig } from "../mapScene";
 import type { GridCellKind, GridSymbol } from "../mapGrid";
 import type { MonsterSpawnConfig } from "../monster";
+import type { NpcSpawnConfig } from "@/modules/npc/types";
 
 export interface DialogueLine {
   side: "left" | "right";
@@ -19,11 +20,11 @@ export interface RoomVisualStyle {
 }
 
 /** A story object placed in a room — everything an `ObstacleConfig` has
- * (position/size/art, blocks movement the same way), plus an optional
- * one-time `dialogue` fired the first time the player reaches that room. */
-export interface SubjectConfig extends ObstacleConfig {
-  dialogue?: DialogueLine[];
-}
+ * (position/size/art, blocks movement the same way). Purely a visual/
+ * physical prop; it does NOT carry dialogue — a room's dialogue is a
+ * property of the room itself (`MapModule.dialoguesByCell`), not of
+ * whatever happens to be decorating it, so an empty room can talk too. */
+export type SubjectConfig = ObstacleConfig;
 
 /** A map is a self-contained module: its own grid, obstacles, story
  * objects, music, and tutorial visibility — never a "demo," always real,
@@ -36,6 +37,13 @@ export interface MapModule {
   subjectsByCell?: Record<string, SubjectConfig[]>;
   /** Hostile mobs placed in specific rooms, keyed by `"row-col"`. */
   monstersByCell?: Record<string, MonsterSpawnConfig[]>;
+  /** Interactable NPCs placed in specific rooms, keyed by `"row-col"`. */
+  npcsByCell?: Record<string, NpcSpawnConfig[]>;
+  /** One-shot dialogue fired the first time the player reaches a room, keyed
+   * by `"row-col"` — a property of the ROOM, not of any prop placed inside
+   * it, so an empty room can still talk. Fires at most once per cell per
+   * session (tracked in `MapScreen` via a `Set`, not persisted). */
+  dialoguesByCell?: Record<string, DialogueLine[]>;
   /** Looped playlist — `onended` advances to the next track, wrapping back
    * to the start. A single-track array just loops that one track. */
   music: string[];

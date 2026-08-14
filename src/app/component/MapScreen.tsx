@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import type { MapEdge } from "@/modules/world/mapScene";
 import { cellAt, getCellWalls, neighborCoords, parseGridMap } from "@/modules/world/mapGrid";
@@ -9,11 +9,18 @@ import { MAP_MODULES } from "@/modules/world/maps";
 import type { DialogueLine } from "@/modules/world/maps";
 import { useMapProgressStore } from "@/modules/world/mapProgress";
 import { useMapMusic } from "@/modules/world/useMapMusic";
-import { getEffectiveStats, syncMaxHpToLiveHud, useCharacterStore } from "@/modules/character/store";
-import { useInventoryStore } from "@/modules/inventory/store";
+import { gainExp, getEffectiveStats, syncMaxHpToLiveHud, useCharacterStore } from "@/modules/character/store";
+import { addCurrency, useInventoryStore } from "@/modules/inventory/store";
+import { NPCS } from "@/modules/npc/data";
+import type { NpcId } from "@/modules/npc/types";
+import { QUESTS } from "@/modules/quest/data";
+import { completeQuest, getQuestStatus, startQuest } from "@/modules/quest/store";
+import type { QuestId } from "@/modules/quest/types";
 import { GameHud } from "./GameHud";
 import { TutorialOverlay } from "./TutorialOverlay";
 import { DialogueBox } from "./DialogueBox";
+import { DeathNotice } from "./DeathNotice";
+import { QuestOfferModal } from "./QuestOfferModal";
 import { ExperienceBar } from "./ExperienceBar";
 
 const MapCanvas = dynamic(() => import("@/modules/world/components/MapCanvas").then((m) => m.MapCanvas), { ssr: false });
@@ -43,6 +50,15 @@ export function MapScreen() {
   const [dialogueQueue, setDialogueQueue] = useState<DialogueLine[] | null>(null);
   const [lastCheckedKey, setLastCheckedKey] = useState<string | null>(null);
   const [dialogueShownFor, setDialogueShownFor] = useState<Set<string>>(() => new Set());
+  const [deathNotice, setDeathNotice] = useState(false);
+  const [respawnNonce, setRespawnNonce] = useState(0);
+  const [npcDialogue, setNpcDialogue] = useState<{
+    npcId: NpcId;
+    questId: QuestId | null;
+    lines: DialogueLine[];
+    phase: "intro" | "active" | "turnIn" | "done";
+  } | null>(null);
+  const [questOffer, setQuestOffer] = useState<{ npcId: NpcId; questId: QuestId } | null>(null);
   const fadeRef = useRef<HTMLDivElement>(null);
 
   useMapMusic(map.music, currentMapId);
@@ -81,18 +97,17 @@ export function MapScreen() {
     [map, posKey, subjects],
   );
   const monsters = useMemo(() => map.monstersByCell?.[posKey] ?? [], [map, posKey]);
+  const npcs = useMemo(() => map.npcsByCell?.[posKey] ?? [], [map, posKey]);
+  const roomDialogue = useMemo(() => map.dialoguesByCell?.[posKey], [map, posKey]);
 
-  // Adjust state during render (not in an effect) so the dialogue for a
-  // room's story object appears the moment that room is reached, exactly
-  // once per session — see https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
+  // Adjust state during render (not in an effect) so a room's dialogue
+  // appears the moment that room is reached, exactly once per session — see
+  // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
   if (posKey !== lastCheckedKey) {
     setLastCheckedKey(posKey);
-    if (!dialogueShownFor.has(posKey)) {
-      const withDialogue = subjects.find((s) => s.dialogue && s.dialogue.length > 0);
-      if (withDialogue?.dialogue) {
-        setDialogueShownFor((prev) => new Set(prev).add(posKey));
-        setDialogueQueue(withDialogue.dialogue);
-      }
+    if (!dialogueShownFor.has(posKey) && roomDialogue && roomDialogue.length > 0) {
+      setDialogueShownFor((prev) => new Set(prev).add(posKey));
+      setDialogueQueue(roomDialogue);
     }
   }
 
@@ -117,10 +132,97 @@ export function MapScreen() {
     });
   }
 
+  function handlePlayerDeath() {
+    if (!fadeRef.current) return;
+    // Show the notice immediately, before the fade even starts, so the
+    // fade-to-black that follows reads as a consequence of dying rather
+    // than an unexplained blackout.
+    setDeathNotice(true);
+
+    gsap.to(fadeRef.current, {
+      opacity: 1,
+      duration: 0.4,
+      ease: "power2.in",
+      onComplete: () => {
+        setPosition(parsed.start);
+        setSpawnAt(null);
+        // `MapCanvas`'s key includes this so dying while already standing
+        // in the start room still forces a fresh Phaser scene (recenters
+        // the player, respawns that room's monsters) — a plain
+        // `setPosition` to an unchanged `posKey` wouldn't remount it.
+        setRespawnNonce((n) => n + 1);
+        gsap.to(fadeRef.current, { opacity: 0, duration: 0.5, ease: "power2.out", delay: 0.15 });
+      },
+    });
+  }
+
+  /** Fired by `mapScene.ts`'s `onNpcInteract` on every Space-press-while-
+   * in-range — not debounced on the Phaser side, so bail out here if
+   * anything is already open (a room dialogue, another NPC's dialogue, or
+   * the quest-offer modal), including subsequent Space presses that are
+   * really meant to advance the dialogue currently open. */
+  function handleNpcInteract(npcId: NpcId) {
+    if (dialogueQueue || npcDialogue || questOffer) return;
+    const npc = NPCS[npcId];
+    // Most-urgent-first, same priority order `Npc.refreshMarker()` uses for
+    // the bubble glyph — whichever quest the marker is currently showing is
+    // the one talking to the NPC should act on.
+    const readyToTurnIn = npc.questIds.find((id) => getQuestStatus(id) === "ready_to_turn_in");
+    const active = npc.questIds.find((id) => getQuestStatus(id) === "active");
+    const notStarted = npc.questIds.find((id) => getQuestStatus(id) === "not_started");
+
+    if (readyToTurnIn) {
+      setNpcDialogue({ npcId, questId: readyToTurnIn, lines: npc.turnInLines, phase: "turnIn" });
+    } else if (active) {
+      setNpcDialogue({ npcId, questId: active, lines: npc.activeLines, phase: "active" });
+    } else if (notStarted) {
+      setNpcDialogue({ npcId, questId: notStarted, lines: npc.introLines, phase: "intro" });
+    } else {
+      setNpcDialogue({ npcId, questId: null, lines: npc.doneLines, phase: "done" });
+    }
+  }
+
+  function handleNpcDialogueDone() {
+    const interaction = npcDialogue;
+    setNpcDialogue(null);
+    if (!interaction?.questId) return;
+
+    if (interaction.phase === "intro") {
+      setQuestOffer({ npcId: interaction.npcId, questId: interaction.questId });
+    } else if (interaction.phase === "turnIn") {
+      const quest = QUESTS[interaction.questId];
+      completeQuest(quest.id);
+      gainExp(quest.rewardExp);
+      addCurrency(quest.rewardCurrency);
+    }
+  }
+
+  function handleQuestAccept() {
+    if (!questOffer) return;
+    startQuest(questOffer.questId);
+    setQuestOffer(null);
+  }
+
+  // `MapCanvas`'s effect deliberately excludes `onNpcInteract` from its
+  // dependency array (same as `onReachEdge`/`onPlayerDeath`) so the Phaser
+  // scene isn't torn down and rebuilt on every unrelated re-render — but
+  // unlike those two (fire-once-ish per room), `handleNpcInteract` gets
+  // called repeatedly across a single room visit and its correctness
+  // depends on reading the LATEST `dialogueQueue`/`npcDialogue`/
+  // `questOffer` each time (that's the whole point of its guard). A closure
+  // frozen at mount would keep reacting to whatever those were the instant
+  // the room loaded, forever. Route through a ref so the stable function
+  // identity handed to Phaser always calls the freshest `handleNpcInteract`.
+  const handleNpcInteractRef = useRef(handleNpcInteract);
+  useEffect(() => {
+    handleNpcInteractRef.current = handleNpcInteract;
+  });
+  const stableOnNpcInteract = useCallback((npcId: NpcId) => handleNpcInteractRef.current(npcId), []);
+
   return (
     <div className="relative h-dvh w-dvw overflow-hidden bg-zinc-950">
       <MapCanvas
-        key={posKey}
+        key={`${posKey}-${respawnNonce}`}
         floorSrc={floorSrc}
         spriteUrl={stats.characterSpriteSrc}
         weaponSpriteSrc={stats.weaponSpriteSrc}
@@ -130,13 +232,26 @@ export function MapScreen() {
         tint={tint}
         obstacles={obstacles}
         monsters={monsters}
+        npcs={npcs}
         spawnAt={spawnAt}
         onReachEdge={handleReachEdge}
+        onPlayerDeath={handlePlayerDeath}
+        onNpcInteract={stableOnNpcInteract}
       />
 
-      {showTutorial && !dialogueQueue && <TutorialOverlay onDismiss={() => setShowTutorial(false)} />}
+      {showTutorial && !dialogueQueue && !npcDialogue && !questOffer && (
+        <TutorialOverlay onDismiss={() => setShowTutorial(false)} />
+      )}
 
       {dialogueQueue && <DialogueBox lines={dialogueQueue} onDone={() => setDialogueQueue(null)} />}
+
+      {npcDialogue && <DialogueBox lines={npcDialogue.lines} onDone={handleNpcDialogueDone} />}
+
+      {questOffer && (
+        <QuestOfferModal quest={QUESTS[questOffer.questId]} onAccept={handleQuestAccept} onDecline={() => setQuestOffer(null)} />
+      )}
+
+      {deathNotice && <DeathNotice onDismiss={() => setDeathNotice(false)} />}
 
       <GameHud cells={parsed.cells} position={position} visited={visited} />
       <ExperienceBar />

@@ -20,13 +20,16 @@ function VitalBar({ value, max, gradient }: { value: number; max: number; gradie
   );
 }
 
-/** Bottom-left HUD — avatar + Máu/Nộ bars only, kept deliberately gọn
+/** Top-left HUD — avatar + Máu/Nộ bars only, kept deliberately gọn
  * (compact). The whole box is one button that opens the Nhân Vật hub
  * (`CharacterPanel`, opened via `onOpenCharacter`) — no separate icon
  * anymore. When `statPoints > 0` (just leveled up, or points still
  * unspent) a badge appears on the box itself so the player notices without
  * opening the panel. Every other feature lives on `ShelfNav` or next to the
- * minimap (`SummonQuickButton`), not here — see SKILL.md mục 1. */
+ * minimap (`SummonQuickButton`), not here — see SKILL.md mục 1.
+ *
+ * Not self-positioned — `GameHud` places it (top of the left column,
+ * `QuestTracker` right below it), same pattern `GridMinimap` already uses. */
 export function PlayerStatusPanel({ onOpenCharacter }: { onOpenCharacter: () => void }) {
   const { hp, maxHp, rage, maxRage } = useLiveHudStore();
   const level = useCharacterStore((s) => s.level);
@@ -38,10 +41,10 @@ export function PlayerStatusPanel({ onOpenCharacter }: { onOpenCharacter: () => 
       type="button"
       aria-label="Nhân Vật"
       onClick={onOpenCharacter}
-      className="group pointer-events-auto fixed bottom-4 left-4 z-20 flex items-center gap-2.5 rounded-2xl border-2 px-3 py-2.5 shadow-2xl backdrop-blur transition-transform hover:z-30 hover:scale-[1.02]"
+      className="group pointer-events-auto relative z-20 flex items-center gap-2.5 rounded-2xl border-2 px-3 py-2.5 shadow-2xl backdrop-blur transition-transform hover:z-30 hover:scale-[1.02]"
       style={{ borderColor: "#7a5230", background: "linear-gradient(160deg, rgba(42,32,20,0.92), rgba(20,15,10,0.92))" }}
     >
-      <WuxiaTooltip label="Nhân Vật" placement="top" />
+      <WuxiaTooltip label="Nhân Vật" placement="bottom" />
       {statPoints > 0 && (
         <span
           className="absolute -right-2 -top-2 flex h-6 min-w-6 animate-pulse items-center justify-center rounded-full border px-1 text-xs font-bold shadow-lg"
