@@ -42,15 +42,15 @@ export const startMap: MapModule = {
   },
   dialoguesByCell: {
     "0-0": [
-      { side: "left", name: "Bạn", portraitSrc: "/character/ingame/dog.png", text: "Mới chấm công mà..." },
-      { side: "left", name: "Bạn", portraitSrc: "/character/ingame/dog.png", text: "Rồi giờ tui đang ở cái chỗ khùng nào nữa đây?" },
+      { side: "left", name: "Bạn", portraitSrc: "/character/player/dog.png", text: "Mới chấm công mà..." },
+      { side: "left", name: "Bạn", portraitSrc: "/character/player/dog.png", text: "Rồi giờ tui đang ở cái chỗ khùng nào nữa đây?" },
     ],
     "0-1": [
-      { side: "left", name: "Bạn", portraitSrc: "/character/ingame/dog.png", text: "Có 2 con quái kích thước khác nhau, chắc là sát thương và máu cũng tăng cùng kích thước!" },
+      { side: "left", name: "Bạn", portraitSrc: "/character/player/dog.png", text: "Có 2 con quái kích thước khác nhau, chắc là sát thương và máu cũng tăng cùng kích thước!" },
     ],
     "0-2": [
-      { side: "left", name: "Bạn", portraitSrc: "/character/ingame/dog.png", text: "Phù!! Nhưng chắc không phải con nào cũng nên đánh." },
-      { side: "left", name: "Bạn", portraitSrc: "/character/ingame/dog.png", text: "Ơ... Có con rùa ở đây... Đến thử xem sao!" },
+      { side: "left", name: "Bạn", portraitSrc: "/character/player/dog.png", text: "Phù!! Nhưng chắc không phải con nào cũng nên đánh." },
+      { side: "left", name: "Bạn", portraitSrc: "/character/player/dog.png", text: "Ơ... Có con rùa ở đây... Đến thử xem sao!" },
     ],
   },
   npcsByCell: {
@@ -58,17 +58,17 @@ export const startMap: MapModule = {
   },
   monstersByCell: {
     "1-2": [
-      { xFrac: 0.2, yFrac: 0.3, spriteSrc: "/villain/deer_injured.png", displaySize: 90, hp: 80, damage: 15, moveSpeed: 160, aggroRadius: 350, attackRadius: 90, attackIntervalMs: 1800, expReward: 40, questId: "first_deer_hunt" },
-      { xFrac: 0.4, yFrac: 0.7, spriteSrc: "/villain/deer_injured.png", displaySize: 90, hp: 80, damage: 15, moveSpeed: 160, aggroRadius: 350, attackRadius: 90, attackIntervalMs: 1800, expReward: 40, questId: "first_deer_hunt" },
-      { xFrac: 0.6, yFrac: 0.25, spriteSrc: "/villain/deer_injured.png", displaySize: 90, hp: 80, damage: 15, moveSpeed: 160, aggroRadius: 350, attackRadius: 90, attackIntervalMs: 1800, expReward: 40, questId: "first_deer_hunt" },
-      { xFrac: 0.75, yFrac: 0.6, spriteSrc: "/villain/deer_injured.png", displaySize: 90, hp: 80, damage: 15, moveSpeed: 160, aggroRadius: 350, attackRadius: 90, attackIntervalMs: 1800, expReward: 40, questId: "first_deer_hunt" },
-      { xFrac: 0.5, yFrac: 0.85, spriteSrc: "/villain/deer_injured.png", displaySize: 90, hp: 80, damage: 15, moveSpeed: 160, aggroRadius: 350, attackRadius: 90, attackIntervalMs: 1800, expReward: 40, questId: "first_deer_hunt" },
+      { xFrac: 0.2, yFrac: 0.3, spriteSrc: "/character/villain/deer_injured.png", displaySize: 90, hp: 80, damage: 15, moveSpeed: 160, aggroRadius: 350, attackRadius: 90, attackIntervalMs: 1800, expReward: 40, questId: "first_deer_hunt" },
+      { xFrac: 0.4, yFrac: 0.7, spriteSrc: "/character/villain/deer_injured.png", displaySize: 90, hp: 80, damage: 15, moveSpeed: 160, aggroRadius: 350, attackRadius: 90, attackIntervalMs: 1800, expReward: 40, questId: "first_deer_hunt" },
+      { xFrac: 0.6, yFrac: 0.25, spriteSrc: "/character/villain/deer_injured.png", displaySize: 90, hp: 80, damage: 15, moveSpeed: 160, aggroRadius: 350, attackRadius: 90, attackIntervalMs: 1800, expReward: 40, questId: "first_deer_hunt" },
+      { xFrac: 0.75, yFrac: 0.6, spriteSrc: "/character/villain/deer_injured.png", displaySize: 90, hp: 80, damage: 15, moveSpeed: 160, aggroRadius: 350, attackRadius: 90, attackIntervalMs: 1800, expReward: 40, questId: "first_deer_hunt" },
+      { xFrac: 0.5, yFrac: 0.85, spriteSrc: "/character/villain/deer_injured.png", displaySize: 90, hp: 80, damage: 15, moveSpeed: 160, aggroRadius: 350, attackRadius: 90, attackIntervalMs: 1800, expReward: 40, questId: "first_deer_hunt" },
     ],
     "0-1": [
       {
         xFrac: 0.4,
         yFrac: 0.4,
-        spriteSrc: "/villain/deer_injured.png",
+        spriteSrc: "/character/villain/deer_injured.png",
         hp: 50,
         damage: 10,
         moveSpeed: 200,
@@ -80,7 +80,7 @@ export const startMap: MapModule = {
       {
         xFrac: 0.65,
         yFrac: 0.65,
-        spriteSrc: "/villain/deer_injured.png",
+        spriteSrc: "/character/villain/deer_injured.png",
         displaySize: 120,
         hp: 100,
         damage: 100,
@@ -93,7 +93,7 @@ export const startMap: MapModule = {
       {
         xFrac: 0.90,
         yFrac: 0.30,
-        spriteSrc: "/villain/deer_injured.png",
+        spriteSrc: "/character/villain/deer_injured.png",
         displaySize: 300,
         hp: 1000000,
         damage: 1000000,

@@ -25,6 +25,7 @@ const AUTO_ADVANCE_MS = 5000;
 export function DialogueBox({ lines, onDone }: { lines: DialogueLine[]; onDone: () => void }) {
   const [index, setIndex] = useState(0);
   const panelRef = useRef<HTMLDivElement>(null);
+  const countdownBarRef = useRef<HTMLDivElement>(null);
   const line = lines[index];
 
   function advance() {
@@ -52,6 +53,13 @@ export function DialogueBox({ lines, onDone }: { lines: DialogueLine[]; onDone: 
 
   useGSAP(() => {
     gsap.fromTo(panelRef.current, { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.3, ease: "power2.out" });
+    // Visualizes the same `AUTO_ADVANCE_MS` window the auto-advance timer
+    // above already uses — a pure GSAP tween re-armed per line via this
+    // `[index]`-keyed scope, no extra tick/interval state needed. Reset to
+    // full width first (`gsap.set`) so a fast manual advance (Space/click)
+    // doesn't carry over a mid-shrink bar into the next line.
+    gsap.set(countdownBarRef.current, { scaleX: 1 });
+    gsap.to(countdownBarRef.current, { scaleX: 0, duration: AUTO_ADVANCE_MS / 1000, ease: "linear" });
   }, [index]);
 
   if (!line) return null;
@@ -84,6 +92,9 @@ export function DialogueBox({ lines, onDone }: { lines: DialogueLine[]; onDone: 
           <p className="text-[12px] font-bold text-[#5c3a21]">{line.name}</p>
           <p className="mt-1 text-[18px] font-thin text-[#3f2a16]">{line.text}</p>
           <p className="font-p22 mt-2 text-right text-xl text-[#8a6a3f]">Nhấn Space để tiếp tục</p>
+          <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-black/15">
+            <div ref={countdownBarRef} className="h-full origin-left rounded-full" style={{ background: "#8a6a3f" }} />
+          </div>
         </div>
       </div>
     </div>

@@ -24,7 +24,7 @@ function ResourceStat({ iconSrc, label, value }: { iconSrc: string; label: strin
   );
 }
 
-const GRID_COLS = 4;
+const GRID_COLS = 6;
 
 /** 1 ô vuông/vũ khí — tên/phẩm chất/chỉ số chỉ hiện qua `WuxiaTooltip` khi
  * hover (đủ để nhận ra ngay bằng icon+viền màu phẩm chất lúc bình thường),
@@ -95,6 +95,11 @@ export function BagPanel({ onClose }: { onClose: () => void }) {
           Chưa có vũ khí nào — sang Tiệm Triệu Hồi dùng Thẻ Triệu Hồi để ra đồ ngẫu nhiên.
         </p>
       ) : (
+        // MUST stay `grid-cols-${GRID_COLS}` — Tailwind needs the literal
+        // class name, can't interpolate `GRID_COLS` here, so keep both in
+        // sync by hand. Drifting apart is exactly what clipped tooltips on
+        // the rightmost column before (`tooltipAlign` below reads the wrong
+        // "last column" if this doesn't match).
         <div className="grid grid-cols-6 gap-3">
           {items.map((item, i) => {
             const equipped = equippedItemId === item.id;

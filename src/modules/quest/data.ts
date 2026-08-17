@@ -9,5 +9,13 @@ export const QUESTS: Record<QuestId, QuestDef> = {
     targetCount: 5,
     rewardExp: 1000,
     rewardCurrency: 2000,
+    // Cụ Quy cho mượn — số liệu thử nghiệm, dễ chỉnh sau.
+    rewardItem: {
+      id: "quest_reward_vlr_primevandal",
+      weaponTypeId: "vlr_primevandal",
+      level: 1,
+      rarity: "legendary",
+      statBonus: { attack: 150, hp: 400 },
+    },
   },
 };

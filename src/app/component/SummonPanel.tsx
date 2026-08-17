@@ -2,52 +2,66 @@
 
 import { useRef, useState } from "react";
 import Image from "next/image";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { Percent } from "lucide-react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { useCharacterStore } from "@/modules/character/store";
 import { useInventoryStore } from "@/modules/inventory/store";
 import { WEAPON_TYPES } from "@/modules/inventory/data";
-import { getRarityPercentages, performSummon, useSummonStore } from "@/modules/summon/store";
-import { RARITY_CONFIG, RARITY_IDS } from "@/modules/summon/data";
-import type { Rarity } from "@/modules/summon/types";
+import { performSummon, performSummonBatch, rollsForLevel, useSummonStore } from "@/modules/summon/store";
+import { RARITY_CONFIG } from "@/modules/summon/data";
 import type { InventoryItem } from "@/modules/inventory/types";
 import { WuxiaModal } from "./WuxiaModal";
+import { WuxiaTooltip } from "./WuxiaTooltip";
+import { SummonRatesModal } from "./SummonRatesModal";
 
 gsap.registerPlugin(useGSAP);
 
 const ROLL_DURATION_MS = 950;
+const BATCH_COLS = 5;
 
-function OddsRow({ rarity, pct }: { rarity: Rarity; pct: number }) {
-  const cfg = RARITY_CONFIG[rarity];
+/** 1 result slot in the x10 grid reveal — mirrors `BagPanel`'s `ItemSlot`
+ * (icon + rarity-color border, full name/bonus only on hover) for visual
+ * consistency between "an item I own" and "an item I just got". */
+function BatchResultSlot({ item, tooltipAlign }: { item: InventoryItem; tooltipAlign: "start" | "center" | "end" }) {
+  const weapon = WEAPON_TYPES[item.weaponTypeId];
+  const rarity = RARITY_CONFIG[item.rarity];
+  const bonus = item.statBonus.hp ? `+${item.statBonus.hp} Máu` : `+${item.statBonus.attack} Tấn Công`;
   return (
-    <div className="flex items-center justify-between py-1 text-sm">
-      <span className="flex items-center gap-2">
-        <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: cfg.color }} />
-        <span className="font-semibold" style={{ color: cfg.color }}>
-          {cfg.name}
-        </span>
-      </span>
-      <span className="font-bold text-[#3f2a16]">{pct}%</span>
+    <div
+      className="group relative flex aspect-square items-center justify-center rounded-lg border-2 p-1 hover:z-30"
+      style={{ borderColor: rarity.color, background: `${rarity.color}22` }}
+    >
+      <WuxiaTooltip label={`${weapon.name} · ${rarity.name} — ${bonus}`} placement="top" align={tooltipAlign} />
+      <div className="relative h-full w-full">
+        <Image src={weapon.spriteSrc} alt={weapon.name} fill className="object-contain" />
+      </div>
     </div>
   );
 }
 
-/** Tiệm Triệu Hồi — spend 1 Thẻ Triệu Hồi for a random weapon item (rarity
+/** Tiệm Triệu Hồi — spend Thẻ Triệu Hồi for random weapon item(s) (rarity
  * odds shift with `storeLevel`, see `modules/summon/store.ts`). Items land
  * straight in the inventory — check `BagPanel` to equip. A "roll" (spin +
- * pulse on the store icon, GSAP timeline) plays before the result reveals,
- * and "Xem Tỉ Lệ" opens a transparent odds table (current level vs next)
- * driven by `getRarityPercentages` — the exact same function `rollRarity`
- * itself uses, so the displayed numbers can never drift from reality. */
+ * pulse on the store icon, GSAP timeline) plays before the result reveals —
+ * x10 plays the SAME single spin, not ten in a row, then reveals a grid
+ * instead of one card. `storeLevel` now levels up on its own from
+ * accumulated rolls (`summonExp`/`rollsForLevel`) — no manual upgrade
+ * button. "Xem Tỉ Lệ" opens a full odds table (`SummonRatesModal`) instead
+ * of an inline expand section, driven by `getRarityPercentages` — the exact
+ * same function `rollRarity` itself uses, so the numbers can never drift
+ * from reality. */
 export function SummonPanel({ onClose }: { onClose: () => void }) {
   const summonCards = useInventoryStore((s) => s.summonCards);
   const storeLevel = useSummonStore((s) => s.storeLevel);
+  const summonExp = useSummonStore((s) => s.summonExp);
   const level = useCharacterStore((s) => s.level);
   const [result, setResult] = useState<InventoryItem | null>(null);
+  const [batchResult, setBatchResult] = useState<InventoryItem[] | null>(null);
   const [rolling, setRolling] = useState(false);
-  const [showOdds, setShowOdds] = useState(false);
+  const [showRates, setShowRates] = useState(false);
   const resultRef = useRef<HTMLDivElement>(null);
+  const batchRef = useRef<HTMLDivElement>(null);
   const iconRef = useRef<HTMLDivElement>(null);
 
   useGSAP(
@@ -58,9 +72,22 @@ export function SummonPanel({ onClose }: { onClose: () => void }) {
     { dependencies: [result] },
   );
 
-  function handleSummon() {
-    if (summonCards <= 0 || rolling) return;
+  useGSAP(
+    () => {
+      if (!batchResult) return;
+      gsap.fromTo(
+        batchRef.current,
+        { opacity: 0, y: 12 },
+        { opacity: 1, y: 0, duration: 0.4, ease: "back.out(1.7)" },
+      );
+    },
+    { dependencies: [batchResult] },
+  );
+
+  function handleSummon(count: 1 | 10) {
+    if (rolling || summonCards < count) return;
     setResult(null);
+    setBatchResult(null);
     setRolling(true);
     gsap
       .timeline()
@@ -68,16 +95,18 @@ export function SummonPanel({ onClose }: { onClose: () => void }) {
       .to(iconRef.current, { rotate: -10, duration: ROLL_DURATION_MS / 1000 / 6, ease: "power1.inOut", repeat: 3, yoyo: true })
       .to(iconRef.current, { scale: 1, rotate: 0, duration: 0.2, ease: "back.out(2)" })
       .call(() => {
-        const item = performSummon(level);
-        setResult(item);
+        if (count === 1) {
+          setResult(performSummon(level));
+        } else {
+          setBatchResult(performSummonBatch(level, count));
+        }
         setRolling(false);
       });
   }
 
   const resultWeapon = result ? WEAPON_TYPES[result.weaponTypeId] : null;
   const resultRarity = result ? RARITY_CONFIG[result.rarity] : null;
-  const currentPct = getRarityPercentages(storeLevel);
-  const nextPct = getRarityPercentages(storeLevel + 1);
+  const rollsNeeded = rollsForLevel(storeLevel);
 
   return (
     <WuxiaModal title="Tiệm Triệu Hồi" onClose={onClose}>
@@ -93,20 +122,55 @@ export function SummonPanel({ onClose }: { onClose: () => void }) {
         </div>
       </div>
 
-      <p className="mt-2 text-center text-sm text-[#8a6a3f]">Cấp Tiệm: {storeLevel}</p>
-      <p className="text-center text-base text-[#3f2a16]">
+      <div className="mt-2 flex items-center justify-center gap-1.5">
+        <p className="text-center text-sm text-[#8a6a3f]">Cấp Tiệm: {storeLevel}</p>
+        <button
+          type="button"
+          aria-label="Xem Tỉ Lệ Rớt Đồ"
+          onClick={() => setShowRates(true)}
+          className="group relative flex h-5 w-5 items-center justify-center rounded-full border hover:z-30"
+          style={{ borderColor: "#7a5230", color: "#7a5230" }}
+        >
+          <WuxiaTooltip label="Xem Tỉ Lệ Rớt Đồ" placement="top" />
+          <Percent className="h-3 w-3" />
+        </button>
+      </div>
+      <div className="mx-auto mt-1 w-40">
+        <div className="relative h-2 overflow-hidden rounded-full bg-black/10 ring-1 ring-black/20">
+          <div
+            className="h-full rounded-full transition-[width] duration-300"
+            style={{ width: `${Math.min(100, Math.round((summonExp / rollsNeeded) * 100))}%`, background: "#b8892f" }}
+          />
+        </div>
+        <p className="mt-0.5 text-center text-[11px] tabular-nums text-[#8a6a3f]">
+          {summonExp}/{rollsNeeded} lượt quay tới Cấp {storeLevel + 1}
+        </p>
+      </div>
+
+      <p className="mt-2 text-center text-base text-[#3f2a16]">
         Thẻ Triệu Hồi: <span className="font-bold">{summonCards}</span>
       </p>
 
-      <button
-        type="button"
-        disabled={summonCards <= 0 || rolling}
-        onClick={handleSummon}
-        className="mt-3 w-full rounded-full border-2 px-4 py-2.5 text-base font-semibold disabled:opacity-40"
-        style={{ borderColor: "#7a5230", color: "#5c3a21" }}
-      >
-        {rolling ? "Đang quay..." : "Triệu Hồi"}
-      </button>
+      <div className="mt-3 flex gap-2">
+        <button
+          type="button"
+          disabled={summonCards <= 0 || rolling}
+          onClick={() => handleSummon(1)}
+          className="flex-1 rounded-full border-2 px-4 py-2.5 text-base font-semibold disabled:opacity-40"
+          style={{ borderColor: "#7a5230", color: "#5c3a21" }}
+        >
+          {rolling ? "Đang quay..." : "Triệu Hồi"}
+        </button>
+        <button
+          type="button"
+          disabled={summonCards < 10 || rolling}
+          onClick={() => handleSummon(10)}
+          className="flex-1 rounded-full border-2 px-4 py-2.5 text-base font-semibold disabled:opacity-40"
+          style={{ borderColor: "#b8892f", color: "#3a2c1a", background: "linear-gradient(160deg, #f2c66d33, #d9a44133)" }}
+        >
+          Triệu Hồi x10
+        </button>
+      </div>
 
       {result && resultWeapon && resultRarity && !rolling && (
         <div
@@ -128,37 +192,21 @@ export function SummonPanel({ onClose }: { onClose: () => void }) {
         </div>
       )}
 
-      {result === null && !rolling && summonCards <= 0 && (
+      {batchResult && batchResult.length > 0 && !rolling && (
+        <div ref={batchRef} className="mt-4 grid grid-cols-5 gap-2">
+          {batchResult.map((item, i) => {
+            const col = i % BATCH_COLS;
+            const tooltipAlign = col === 0 ? "start" : col === BATCH_COLS - 1 ? "end" : "center";
+            return <BatchResultSlot key={item.id} item={item} tooltipAlign={tooltipAlign} />;
+          })}
+        </div>
+      )}
+
+      {result === null && batchResult === null && !rolling && summonCards <= 0 && (
         <p className="mt-4 text-center text-sm text-[#8a6a3f]">Hết Thẻ Triệu Hồi — hạ quái để có cơ hội rớt thêm.</p>
       )}
 
-      <button
-        type="button"
-        onClick={() => setShowOdds((v) => !v)}
-        className="mt-4 flex w-full items-center justify-center gap-1 text-sm font-semibold text-[#7a5230] hover:text-[#5c3a21]"
-      >
-        Xem Tỉ Lệ Rớt Đồ {showOdds ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-      </button>
-
-      {showOdds && (
-        <div className="mt-2 rounded-xl border-2 p-3" style={{ borderColor: "#7a523033" }}>
-          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[#8a6a3f]">Cấp Tiệm {storeLevel} (hiện tại)</p>
-          {RARITY_IDS.map((id) => (
-            <OddsRow key={id} rarity={id} pct={currentPct[id]} />
-          ))}
-
-          <div className="my-2 border-t" style={{ borderColor: "#7a523033" }} />
-
-          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[#8a6a3f]">Cấp Tiệm {storeLevel + 1} (nếu nâng cấp)</p>
-          {RARITY_IDS.map((id) => (
-            <OddsRow key={id} rarity={id} pct={nextPct[id]} />
-          ))}
-
-          <p className="mt-2 text-[11px] leading-snug text-[#8a6a3f]">
-            Cấp Tiệm càng cao, tỉ lệ Sử Thi/Huyền Thoại càng lớn (trừ thẳng vào tỉ lệ Thường) — tỉ lệ Hiếm không đổi theo cấp.
-          </p>
-        </div>
-      )}
+      {showRates && <SummonRatesModal onClose={() => setShowRates(false)} />}
     </WuxiaModal>
   );
 }

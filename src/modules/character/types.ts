@@ -1,6 +1,6 @@
 import type { WeaponTypeId } from "@/modules/inventory/types";
 
-export type CharacterId = "dog" | "turtle" | "deer" | "tiger" | "dragon" | "panda" | "crane";
+export type CharacterId = "dog" | "tiger" | "panda" ;
 
 export interface CharacterConfig {
   id: CharacterId;

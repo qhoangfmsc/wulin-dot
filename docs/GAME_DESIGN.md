@@ -1,6 +1,23 @@
 # Wulin.io — Tài liệu thiết kế game
 
-> Cập nhật lần cuối: 2026-08-14 (đợt 10) — Hệ thống NPC + Nhiệm vụ (2 module
+> Cập nhật lần cuối: 2026-08-14 (đợt 11) — 8 việc: sửa bug tooltip Túi Đồ bị
+> cắt ở cột cuối (`GRID_COLS` lệch với `grid-cols-6` thật); `QuestTracker`
+> hover ra card mô tả đầy đủ; hint "Nhấn Space Để Trò Chuyện" khi gần NPC
+> (store mới `modules/npc/interactionHint.ts`); `DialogueBox` thêm thanh
+> countdown 5s trực quan (GSAP, dùng lại scope fade-in sẵn có); Triệu Hồi
+> thêm quay x10 (`performSummonBatch`), bảng tỉ lệ đổi từ khung mở-rộng
+> sang icon mở modal (`SummonRatesModal.tsx`), cấp tiệm giờ tự lên theo số
+> lượt quay tích luỹ (`summonExp`/`rollsForLevel`, không cần nút nâng cấp
+> tay); **Chợ Trời (mới, `modules/market/`)** — mua/bán vũ khí, làm mới
+> cửa hàng, mua Thẻ Triệu Hồi, nhận 3 thẻ miễn phí mỗi ngày, đặt cạnh Tiệm
+> Triệu Hồi ở HUD; **hệ thống mở khoá tính năng (mới, `modules/unlocks/`)**
+> — Tiệm Triệu Hồi + Chợ Trời đều bắt đầu khoá (`false`), hoàn thành nhiệm
+> vụ đầu tiên mở khoá cả hai kèm overlay ăn mừng lấp lánh
+> (`FeatureUnlockOverlay.tsx`, z cao nhất app); nhiệm vụ giờ thưởng được cả
+> vật phẩm, không chỉ vàng/exp (`QuestDef.rewardItem`) — nhiệm vụ đầu tiên
+> thưởng thêm 1 khẩu huyền thoại. Xem mục "Đã có".
+>
+> Cập nhật trước đó (2026-08-14, đợt 10) — Hệ thống NPC + Nhiệm vụ (2 module
 > mới: `modules/npc/`, `modules/quest/`) + 4 sửa theo playtest thật. NPC đầu
 > tiên "Cụ Quy" (rùa) ở phòng `0-2` — lại gần bấm Space nói chuyện, bubble
 > thoại trên đầu vừa là marker trạng thái quest (?/…/!) vừa nhấp nháy khi
@@ -95,7 +112,7 @@
 > trong 1 hàng tự `flex-wrap` xuống dòng nếu dài. Nút X của `WuxiaModal` sửa
 > lỗi bị cắt cụt (dời ra làm sibling của khung cuộn nội dung thay vì con bên
 > trong). Roster nhân vật mở rộng từ 1 lên 7 (toàn bộ ảnh trong
-> `public/character/ingame/` trừ `zombie.png`/`deer_injured.png`), mỗi nhân
+> `public/character/player/` trừ `zombie.png`/`deer_injured.png`), mỗi nhân
 > vật có `baseHp`/`baseAttack` RIÊNG. `CharacterPanel` tab "Chỉ Số" thêm hàng
 > nối nhân vật-vũ khí đang dùng ở đầu; tab "Nhân Vật" đổi thành danh sách
 > chọn (xem chỉ số gốc trước khi đổi thật). `BagPanel`'s item row gọn lại,
@@ -200,9 +217,9 @@ truyện có thoại, nghe nhạc nền theo từng bản đồ.
   sự di chuyển và luôn bằng hướng di chuyển đó — đứng yên thì giữ nguyên
   hướng cuối cùng. Logic này (xoay frame ảnh + nảy kiểu slime) nằm trong 1
   class dùng chung — **`Actor`** (`modules/world/actor.ts`).
-- Nhân vật hiện tại là `dog` (`public/character/ingame/dog.png`) — không gắn
+- Nhân vật hiện tại là `dog` (`public/character/player/dog.png`) — không gắn
   với hệ thống class/stats nào, chỉ là 1 sprite hiển thị qua `Actor`.
-  `public/character/ingame/` còn có ảnh **chưa gắn hết vào code**, để dành
+  `public/character/npc/` còn có ảnh **chưa gắn hết vào code**, để dành
   cho việc mở rộng sau: `turtle.png` (đã dùng làm portrait cho thoại "???" ở
   map `start`), `deer.png`/`deer_injured.png`/`panda.png` (khả năng cao là
   NPC/bạn đồng hành cho map sau này), `zombie.png` (khả năng cao là loại quái
@@ -219,8 +236,8 @@ truyện có thoại, nghe nhạc nền theo từng bản đồ.
 public/
   choose_character_background_screen.png  # backdrop TapToStartScreen
   minimap.png              # art thật cho GridMinimap (phong cách cuộn thư)
-  character/ingame/        # bust nhân vật — dog.png (player hiện tại),
-                            # turtle.png (portrait thoại), deer/panda/zombie
+  character/player/        # bust nhân vật — dog.png (player hiện tại),
+  character/npc/            # turtle.png (portrait thoại), deer/panda/zombie
                             # (chưa gắn code, xem mục 1)
   subject/company.png      # vật thể cốt truyện ở phòng bắt đầu map `start`
   weapon-display/           # ảnh vũ khí ném (dress_shoe.png, flip_flop.png)
@@ -602,7 +619,7 @@ src/
                                 # toàn cục)
       data.ts                    # CHARACTERS — 7 nhân vật (dog/turtle/deer/
                                  # tiger/dragon/panda/crane, dùng hết ảnh
-                                 # trong `public/character/ingame/` TRỪ
+                                 # trong `public/character/player/` TRỪ
                                  # `zombie.png` [đã là art quái] và
                                  # `deer_injured.png` [biến thể bị thương
                                  # của deer, không phải nhân vật riêng]),
@@ -992,7 +1009,7 @@ combat...), giữ đúng cấu trúc thư mục này.
   `MonsterSpawnConfig` (vị trí theo tỉ lệ, sprite, `displaySize?` tuỳ chọn —
   px width, mặc định 52 nếu bỏ trống — hp/damage/moveSpeed/aggroRadius/
   attackRadius/attackIntervalMs/expReward). Map `start` có 3 con
-  `deer_injured` (`villain/deer_injured.png`, `displaySize` 100-120) ở phòng
+  `deer_injured` (`character/villain/deer_injured.png`, `displaySize` 100-120) ở phòng
   `"0-1"`.
 - **Canvas Phaser render Retina-sharp, không phải 1:1 CSS px** (đợt 9) —
   `MapCanvas.tsx` dùng `Phaser.Scale.NONE` + tự resize canvas backing-store
@@ -1092,7 +1109,7 @@ combat...), giữ đúng cấu trúc thư mục này.
   `visible` còn trục kia không) — nút định vị thò ra ngoài biên
   (`-right-3 -top-3`) bị trục X đó cắt cụt theo.
 - **Roster nhân vật mở rộng từ 1 lên 7** (`modules/character/data.ts`) —
-  toàn bộ ảnh trong `public/character/ingame/` TRỪ `zombie.png` (đã là art
+  toàn bộ ảnh trong `public/character/player/` TRỪ `zombie.png` (đã là art
   quái) và `deer_injured.png` (biến thể bị thương của `deer`, không phải
   nhân vật riêng): Cẩu Nhi/Quy Nhi/Lộc Nhi/Hổ Nhi/Long Nhi/Gấu Trúc/Hạc Nhi.
   Mỗi nhân vật có `baseHp`/`baseAttack` RIÊNG (không còn hằng số toàn cục
@@ -1213,7 +1230,7 @@ combat...), giữ đúng cấu trúc thư mục này.
   thêm quest sau không đổi type — /`introLines`/`activeLines`/
   `turnInLines`/`doneLines`, mỗi bộ là `DialogueLine[]`), `NpcSpawnConfig`
   (`xFrac`/`yFrac`/`npcId`/`displaySize?`/`talkRadius?`). `data.ts`: NPC đầu
-  tiên `"turtle_guide"` = Cụ Quy (`character/ingame/turtle.png`), đặt ở
+  tiên `"turtle_guide"` = Cụ Quy (`character/npc/turtle.png`), đặt ở
   `start.ts`'s `npcsByCell["0-2"]`. `npc.ts`: lớp Phaser `Npc` — bọc 1
   `Actor` (như `Monster`), vẽ 1 "bubble thoại" phía trên đầu qua hàm dùng
   lại được `createSpeechBubble()` (Graphics bo góc + đuôi trỏ xuống, không
@@ -1308,6 +1325,113 @@ combat...), giữ đúng cấu trúc thư mục này.
   `obstaclesByCell["1-2"]` (9 đá/bụi trang trí) — KHÔNG đụng
   `monstersByCell["0-1"]` (chỗ user tự chỉnh số liệu để test riêng).
 
+### 8 việc theo phản hồi thực tế (2026-08-14 đợt 11)
+
+- **Bug thật đã tìm và sửa — tooltip Túi Đồ bị cắt ở cột cuối**:
+  `BagPanel.tsx`'s hằng số `GRID_COLS = 4` lệch với className thật `grid
+  grid-cols-6` — `tooltipAlign` (quyết định tooltip mở về hướng nào để
+  không tràn khỏi `WuxiaModal`) tính theo `i % GRID_COLS`, nên với lưới 6
+  cột thật mà chia dư theo 4, cột 5/6 không bao giờ nhận `align="end"`.
+  Sửa `GRID_COLS` thành `6`, thêm comment cảnh báo Tailwind không
+  interpolate được `grid-cols-${GRID_COLS}` nên 2 con số này phải tự tay
+  giữ đồng bộ. Verify bằng Playwright: hover item cột cuối cùng — tooltip
+  hiện đầy đủ, không cắt.
+- **`QuestTracker.tsx` hover ra card mô tả đầy đủ** — `QuestDef` đã có sẵn
+  `objectiveLabel` (mô tả dài), không cần thêm field. Card riêng (không
+  phải `WuxiaTooltip`, vốn ép `whitespace-nowrap` chỉ hợp 1 dòng), mở sang
+  PHẢI (`left-full`) vì tracker đứng cố định ở mép trái màn hình, không có
+  ancestor `overflow-y-auto` nào để lo bug tràn cạnh.
+- **Hint "Nhấn Space Để Trò Chuyện" khi gần NPC** — làm phía REACT (không
+  vẽ trong Phaser, để chữ không co giãn theo camera zoom động của phòng).
+  `modules/npc/interactionHint.ts` (store mới, session-only, đúng bridge
+  pattern `combatTarget.ts`): `mapScene.ts`'s `updateNpcInteraction()` ghi
+  `nearbyNpcId` mỗi frame ngay tại chỗ đã tính `nearest` (không thêm vòng
+  lặp mới). `NpcInteractionHint.tsx` (mới) chỉ hiện khi có NPC gần VÀ
+  KHÔNG có dialogue/modal nào đang mở — `MapScreen.tsx` tính điều kiện đó
+  (component chỉ nhận `visible` làm prop) vì chỉ `MapScreen` biết cả state
+  Phaser (`nearbyNpcId`) lẫn state hội thoại React.
+- **`DialogueBox.tsx` thêm thanh countdown 5s trực quan** — tận dụng GSAP
+  đã dùng cho fade-in panel (`useGSAP` khoá theo `[index]`), thêm 1 tween
+  `scaleX 1→0` đúng bằng `AUTO_ADVANCE_MS/1000` giây trong CÙNG scope —
+  tự huỷ/tạo lại mỗi khi đổi dòng hoặc dialogue đóng, không cần thêm
+  `setInterval`/state đếm số riêng.
+- **Triệu Hồi mở rộng (`SummonPanel.tsx`, `modules/summon/store.ts`)**:
+  - Nút "Triệu Hồi x10" cạnh nút x1 — `performSummonBatch(level, 10)` gọi
+    `performSummon` lặp lại (không nhân bản logic reward), 1 lượt animation
+    quay chung (không lặp 10 lần), kết quả hiện dạng lưới 5 cột thay vì 1
+    thẻ.
+  - Cấp Tiệm giờ TỰ lên theo lượt quay tích luỹ, không còn tĩnh mãi ở 1:
+    state mới `summonExp`, hàm `rollsForLevel(level) = level × 10`
+    (đường cong tuyến tính, số thử nghiệm dễ đổi), `recordSummonRoll()`
+    (nội bộ, gọi sau MỖI roll thành công dù x1 hay x10) cộng dồn và tự lên
+    cấp khi đủ ngưỡng, giữ phần dư (không reset về 0). Thanh EXP nhỏ hiện
+    ngay dưới "Cấp Tiệm: X".
+  - "Xem Tỉ Lệ Rớt Đồ" đổi từ khung mở-rộng-tại-chỗ (hiện cấp hiện tại +
+    cấp kế) sang 1 icon `%` nhỏ mở `SummonRatesModal.tsx` (mới) — liệt kê
+    MỌI cấp có ý nghĩa, dừng khi 2 cấp liên tiếp cho ra đúng cùng % (đã
+    chạm sàn `MIN_COMMON_WEIGHT` của `getRarityWeights`) thay vì hardcode
+    số cấp tối đa.
+  - `EdgeTab.tsx` tách từ local trong `CharacterPanel.tsx` ra file dùng
+    chung (`src/app/component/EdgeTab.tsx`) — `MarketPanel.tsx` (xem dưới)
+    cũng cần "bookmark" tab kiểu đó, 2 nơi dùng là ngưỡng tách theo quy
+    ước dự án.
+- **Chợ Trời (mới, `modules/market/`)** — tính năng thương mại thứ 2, đặt
+  cạnh Tiệm Triệu Hồi ở HUD (`MarketQuickButton.tsx`, icon
+  `/icon/market.png`, badge chấm đỏ nhấp nháy khi chưa nhận quà ngày).
+  `store.ts` (persist): `stock: MarketListing[]` (6 vũ khí ngẫu nhiên +
+  giá, roll rarity qua `rollRarity(1)` — CỐ Ý độc lập với `storeLevel` của
+  Tiệm Triệu Hồi, 2 hệ thống tách biệt). `MarketPanel.tsx` 2 tab
+  "bookmark" Mua/Bán:
+  - Tab Mua: "Làm Mới Cửa Hàng" (tốn Bạc, roll lại toàn bộ `stock`), "Mua
+    Thẻ Triệu Hồi" (giá cố định), "Nhận 3 Thẻ Triệu Hồi Miễn Phí" (disable
+    nếu đã nhận trong ngày — so `"YYYY-MM-DD"` hôm nay với lần nhận gần
+    nhất), lưới `stock` với giá + nút mua từng món.
+  - Tab Bán: lưới vũ khí người chơi đang có, giá bán riêng (công thức rẻ
+    hơn giá mua) + nút bán từng món.
+  - `inventory/store.ts` thêm 2 hàm mới phục vụ Chợ Trời: `removeItem(id)`
+    (trước đây CHỈ có `addItem`, chưa có xoá — tự `equipItem(null)` nếu
+    xoá đúng món đang mặc, tránh `equippedItemId` trỏ vào vật phẩm không
+    còn tồn tại) và `spendCurrency(amount): boolean` (guard "đủ tiền mới
+    trừ, báo có trừ được không" — cùng dạng `spendSummonCard()`).
+- **Hệ thống mở khoá tính năng (mới, `modules/unlocks/`)** — Tiệm Triệu
+  Hồi và Chợ Trời đều bắt đầu **khoá** (`false`) cho user mới, không còn
+  hiện sẵn ở HUD như trước. `types.ts` chỉ có
+  `UnlockableFeature = "summonStore" | "market"` (value tiếng Anh —
+  MỌI tên biến/hằng trong code đều value tiếng Anh, chỉ hiện tiếng Việt ở
+  UI, đúng quy ước xuyên suốt dự án); `data.ts`'s `UNLOCK_FEATURE_NAMES`
+  là DUY NHẤT chỗ ánh xạ sang tên hiển thị tiếng Việt. `store.ts`
+  (persist) giữ cờ `unlocked` thật; `announcement.ts` (KHÔNG persist) giữ
+  tín hiệu tạm "vừa mở khoá, cần chào mừng" TÁCH RIÊNG khỏi cờ thật — lỡ
+  reload giữa chừng thì mất thông báo (chấp nhận được) thay vì overlay tự
+  bật lại mỗi lần load trang. `unlockFeature()` idempotent — gọi lại khi
+  đã mở khoá rồi thì im lặng, không hiện overlay lần 2.
+  `FeatureUnlockOverlay.tsx` (mới) — z-index CAO NHẤT toàn app (`z-[60]`,
+  vượt cả `DeathNotice`'s `z-50`), card lấp lánh LIÊN TỤC (GSAP glow pulse
+  lặp vô hạn — khác hẳn `DeathNotice` chỉ fade-in rồi đứng yên), đóng bằng
+  click (backdrop hoặc nút "Tiếp Tục") HOẶC phím Space. Trigger hiện tại:
+  hoàn thành nhiệm vụ `first_deer_hunt` (trả cho Cụ Quy) mở khoá CẢ HAI
+  tính năng cùng lúc — hardcode ngay tại điểm gọi trong `MapScreen.tsx`
+  (`if (quest.id === "first_deer_hunt") { unlockFeature(...) }`), KHÔNG
+  phải field tổng quát trong `QuestDef`, vì mới có đúng 1 quest — chưa đủ
+  ví dụ để biết hình dạng tổng quát đúng. `GameHud.tsx` chỉ render
+  `SummonQuickButton`/`MarketQuickButton` khi tính năng tương ứng đã mở
+  khoá — ẩn HẲN, không phải icon khoá xám.
+- **Nhiệm vụ thưởng được vật phẩm, không chỉ vàng/exp** — `QuestDef` thêm
+  field tuỳ chọn `rewardItem?: InventoryItem`. `first_deer_hunt` giờ
+  thưởng thêm 1 khẩu `vlr_primevandal` huyền thoại (Cụ Quy cho mượn,
+  `statBonus` cả `attack` lẫn `hp` cùng lúc — chỉ roll ngẫu nhiên mới luôn
+  chọn 1 trong 2, vật phẩm thưởng tay thì không bị giới hạn đó).
+  `MapScreen.tsx`'s `handleNpcDialogueDone`'s nhánh `"turnIn"` gọi thẳng
+  `addItem(quest.rewardItem)` cạnh `gainExp`/`addCurrency` đã có —
+  `InventoryItem` vốn đã luôn cho phép tạo thủ công (không bắt buộc phải
+  roll ngẫu nhiên qua Triệu Hồi), không cần cơ chế mới.
+- **Bug có sẵn từ trước, phát hiện lúc test Triệu Hồi x10 (không liên quan
+  đợt này)**: `public/weapon-display/pvz_chili.png` bị thiếu file dù
+  `WeaponTypeId "pvz_chili"` đã khai trong `inventory/data.ts` — roll
+  đúng loại vũ khí đó thì ảnh lỗi 400. Chưa sửa (không có file ảnh đúng để
+  thêm) — cần cung cấp asset hoặc bỏ hẳn entry này khỏi
+  `WEAPON_TYPE_IDS`/`WEAPON_TYPES`.
+
 ## 4. Animation — quy ước & vị trí
 
 Nguyên tắc chia việc: **GSAP animate lớp React/DOM (UI, chuyển cảnh, hover)**;
@@ -1391,7 +1515,7 @@ thống vào cùng một hiệu ứng.
       có điều kiện hoàn thành/exit nào được định nghĩa — `setCurrentMapId`
       đã có nhưng chưa có chỗ nào gọi nó).
 - [ ] **Zombie làm quái mới, deer/panda làm NPC** — ảnh đã có sẵn ở
-      `public/character/ingame/` (xem mục 1; `turtle.png` đã dùng làm
+      `public/npc/player/` (xem mục 1; `turtle.png` đã dùng làm
       portrait thoại "???" ở map `start`) nhưng chưa gắn vào hệ thống nào —
       chờ chỉ đạo cụ thể hơn (kể cả việc có xây lại combat hay không).
 - [ ] **Art direction "Stylized Chinese ink painting + 3D nhẹ"** theo ảnh

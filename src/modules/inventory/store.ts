@@ -33,6 +33,16 @@ export function addItem(item: InventoryItem) {
   useInventoryStore.setState((s) => ({ items: [...s.items, item] }));
 }
 
+/** Used by `modules/market/store.ts`'s sell flow — unequips first if the
+ * sold item happened to be the one worn, so `equippedItemId` never points
+ * at an item that no longer exists. */
+export function removeItem(id: string) {
+  useInventoryStore.setState((s) => ({
+    items: s.items.filter((item) => item.id !== id),
+    equippedItemId: s.equippedItemId === id ? null : s.equippedItemId,
+  }));
+}
+
 /** `null` unequips (falls back to the character's default weapon look). */
 export function equipItem(id: string | null) {
   useInventoryStore.setState({ equippedItemId: id });
@@ -40,6 +50,16 @@ export function equipItem(id: string | null) {
 
 export function addCurrency(amount: number) {
   useInventoryStore.setState((s) => ({ currency: s.currency + amount }));
+}
+
+/** Spends `amount` Bạc if there's enough — returns whether it actually
+ * spent it, same "guard + report success" shape as `spendSummonCard`. Used
+ * by `modules/market/store.ts` for buying/resetting-stock. */
+export function spendCurrency(amount: number): boolean {
+  const { currency } = useInventoryStore.getState();
+  if (currency < amount) return false;
+  useInventoryStore.setState((s) => ({ currency: s.currency - amount }));
+  return true;
 }
 
 export function addSummonCard(amount: number) {

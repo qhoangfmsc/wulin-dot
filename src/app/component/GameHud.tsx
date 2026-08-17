@@ -8,6 +8,7 @@ import { MonsterTargetHud } from "./MonsterTargetHud";
 import { QuestTracker } from "./QuestTracker";
 import { ShelfNav } from "./ShelfNav";
 import { SummonQuickButton } from "./SummonQuickButton";
+import { MarketQuickButton } from "./MarketQuickButton";
 import { GridMinimap } from "./GridMinimap";
 import { CharacterPanel } from "./CharacterPanel";
 import { BagPanel } from "./BagPanel";
@@ -15,6 +16,8 @@ import { SkillsPanel } from "./SkillsPanel";
 import { SummonPanel } from "./SummonPanel";
 import { PetPanel } from "./PetPanel";
 import { MountPanel } from "./MountPanel";
+import { MarketPanel } from "./MarketPanel";
+import { useUnlockStore } from "@/modules/unlocks/store";
 
 /** The whole HUD layer, in one place: top-left column (`PlayerStatusPanel`
  * + `MonsterTargetHud` side by side, `QuestTracker` below both), top-center
@@ -37,6 +40,8 @@ export function GameHud({
   visited: Set<string>;
 }) {
   const [activePanel, setActivePanel] = useState<PanelId | null>(null);
+  const summonStoreUnlocked = useUnlockStore((s) => s.unlocked.summonStore);
+  const marketUnlocked = useUnlockStore((s) => s.unlocked.market);
 
   function close() {
     setActivePanel(null);
@@ -53,12 +58,15 @@ export function GameHud({
       </div>
       <ShelfNav onNavigate={setActivePanel} />
       <div className="pointer-events-none fixed right-4 top-4 z-20 flex items-start gap-2">
-        {/* Quick-access icons (currently just Triệu Hồi — room for more
-         * later, VD sự kiện/event) sit LEFT of the minimap, top-aligned with
-         * it. `flex-wrap` on this constrained-width row means extra icons
-         * drop to a 2nd row below instead of pushing the minimap sideways. */}
+        {/* Quick-access icons (Triệu Hồi, Chợ Trời — room for more later,
+         * VD sự kiện/event) sit LEFT of the minimap, top-aligned with it.
+         * `flex-wrap` on this constrained-width row means extra icons drop
+         * to a 2nd row below instead of pushing the minimap sideways. Both
+         * start hidden — see `modules/unlocks/` — until unlocked via the
+         * first quest. */}
         <div className="flex max-w-40 flex-wrap items-start justify-end gap-2">
-          <SummonQuickButton onOpen={() => setActivePanel("summon")} />
+          {summonStoreUnlocked && <SummonQuickButton onOpen={() => setActivePanel("summon")} />}
+          {marketUnlocked && <MarketQuickButton onOpen={() => setActivePanel("market")} />}
         </div>
         <GridMinimap cells={cells} position={position} visited={visited} />
       </div>
@@ -69,6 +77,7 @@ export function GameHud({
       {activePanel === "summon" && <SummonPanel onClose={close} />}
       {activePanel === "pet" && <PetPanel onClose={close} />}
       {activePanel === "mount" && <MountPanel onClose={close} />}
+      {activePanel === "market" && <MarketPanel onClose={close} />}
     </>
   );
 }

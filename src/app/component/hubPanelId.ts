@@ -5,4 +5,4 @@
  * `CharacterPanel` still uses `onNavigate` (its equipped-weapon shortcut
  * jumps to "bag") — the other panels don't navigate anywhere, they only
  * close. */
-export type PanelId = "character" | "bag" | "skills" | "summon" | "pet" | "mount";
+export type PanelId = "character" | "bag" | "skills" | "summon" | "pet" | "mount" | "market";

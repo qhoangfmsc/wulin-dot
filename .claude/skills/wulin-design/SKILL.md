@@ -65,7 +65,7 @@ tự wrap xuống dòng nếu dài. `WuxiaModal`'s nút X dời ra làm sibling 
 khung `overflow-y-auto` thay vì con bên trong nó — nút bị con overflow-y-auto
 kéo theo `overflow-x: auto` ẩn luôn, cắt cụt nút nằm ngoài biên
 (`-right-3 -top-3`). Nhân vật: roster mở rộng từ 1 lên 7 (toàn bộ ảnh trong
-`public/character/ingame/` trừ `zombie.png`/`deer_injured.png` — xem
+`public/character/player/` trừ `zombie.png`/`deer_injured.png` — xem
 `character/data.ts`), MỖI nhân vật có `baseHp`/`baseAttack` RIÊNG (không còn
 hằng số `BASE_HP`/`BASE_ATTACK` toàn cục). `CharacterPanel` tab "Chỉ Số"
 thêm hàng nối nhân vật-vũ khí ở đầu; tab "Nhân Vật" đổi hẳn thành danh sách
@@ -266,6 +266,85 @@ theo phản hồi thực tế.
      hạn nếu quên bấm.
   4. `MonsterTargetHud.tsx` — xem mục Bonus ở trên.
 
+**2026-08-14 (đợt 11)**: 8 việc — sửa 3 bug UI nhỏ, countdown dialogue,
+Triệu Hồi x1/x10 + bảng tỉ lệ modal + cấp shop theo lượt quay, Chợ Trời
+(module mới), hệ thống mở khoá tính năng (module mới), thưởng vật phẩm cho
+nhiệm vụ.
+- **Bug thật đã tìm và sửa: tooltip Túi Đồ bị cắt ở cột cuối** —
+  `BagPanel.tsx`'s `GRID_COLS = 4` lệch với className thật `grid
+  grid-cols-6` (đổi lúc nào không rõ, không đồng bộ) — `tooltipAlign`
+  tính theo `i % 4` nên cột 5/6 thật không bao giờ nhận `align="end"`. Sửa
+  `GRID_COLS` khớp `6`, thêm comment cảnh báo 2 con số này PHẢI tự tay giữ
+  đồng bộ (Tailwind cần class literal, không interpolate được
+  `grid-cols-${GRID_COLS}`).
+- **`QuestTracker.tsx` hover ra card mô tả đầy đủ** — dùng `objectiveLabel`
+  có sẵn trong `QuestDef` (không thêm field), card riêng (không phải
+  `WuxiaTooltip` — tooltip ép `whitespace-nowrap`, không hợp mô tả nhiều
+  dòng), mở sang PHẢI (`left-full`) vì tracker đứng ở mép trái màn hình.
+- **NPC hint "Nhấn Space Để Trò Chuyện"** — làm ở phía REACT (không vẽ
+  trong Phaser, tránh chữ co giãn theo camera zoom động): store mới
+  `modules/npc/interactionHint.ts` (session-only), `mapScene.ts`'s
+  `updateNpcInteraction()` ghi `nearbyNpcId` mỗi frame (đúng chỗ đã tính
+  `nearest`, không thêm vòng lặp), `NpcInteractionHint.tsx` (mới) hiện khi
+  có NPC gần VÀ không có dialogue/modal nào đang mở (ẩn/hiện quyết định ở
+  `MapScreen.tsx` vì chỉ nơi đó biết cả state Phaser lẫn state hội thoại
+  React).
+- **`DialogueBox.tsx` thêm thanh countdown 5s trực quan** — tận dụng GSAP
+  đã dùng sẵn cho fade-in panel (`useGSAP([index])`), thêm 1 tween
+  `scaleX 1→0` đúng `AUTO_ADVANCE_MS/1000` giây trong CÙNG scope — tự
+  huỷ/tạo lại theo dòng, không cần `setInterval`/state đếm số riêng.
+- **Triệu Hồi mở rộng**: `summon/store.ts` thêm `performSummonBatch()` (x10,
+  lặp `performSummon` — không nhân bản logic reward), state mới `summonExp`
+  + hàm `rollsForLevel(level) = level*10` (placeholder tuyến tính) +
+  `recordSummonRoll()` (nội bộ, gọi sau MỖI roll thành công dù x1 hay x10)
+  tự động lên `storeLevel` khi đủ ngưỡng, giữ phần dư (không reset về 0).
+  "Xem Tỉ Lệ" đổi từ khung mở-rộng-tại-chỗ sang icon nhỏ (`Percent` từ
+  lucide) mở `SummonRatesModal.tsx` (mới) — liệt kê MỌI cấp có ý nghĩa
+  (dừng khi 2 cấp liên tiếp cho ra cùng % — chạm sàn `MIN_COMMON_WEIGHT`,
+  không hardcode số cấp tối đa).
+- **`EdgeTab.tsx` tách ra dùng chung** — trước chỉ có local trong
+  `CharacterPanel.tsx`, giờ `MarketPanel.tsx` cũng cần tab "bookmark" kiểu
+  đó (Mua/Bán) — 2 nơi dùng là ngưỡng tách theo quy ước dự án.
+- **`modules/market/` (mới) — Chợ Trời**, đặt cạnh Tiệm Triệu Hồi ở HUD
+  (`MarketQuickButton.tsx`, icon `/icon/market.png`). `store.ts` (persist):
+  `stock: MarketListing[]` (vũ khí + `price`, sinh ngẫu nhiên qua
+  `rollRarity(1)` — CỐ Ý không ăn theo `storeLevel` của Tiệm Triệu Hồi, 2
+  hệ thống độc lập), `resetStock()`/`buyListing()` tốn Bạc (guard qua
+  `inventory/store.ts`'s `spendCurrency()` — hàm MỚI, cùng dạng "check rồi
+  báo có tiêu được không" như `spendSummonCard()`), `sellItem()` cộng Bạc
+  theo công thức riêng (rẻ hơn giá mua) + gọi `removeItem()` (hàm MỚI trong
+  `inventory/store.ts` — trước đây CHỈ có `addItem`, chưa có xoá; tự
+  `equipItem(null)` nếu xoá đúng món đang mặc), `buySummonCard()`,
+  `claimDailyFreeCards()` (so sánh `"YYYY-MM-DD"` hôm nay, 1 lần/ngày thật).
+- **`modules/unlocks/` (mới) — hệ thống mở khoá tính năng**: `types.ts`
+  chỉ có `UnlockableFeature = "summonStore" | "market"` (value tiếng Anh);
+  `data.ts`'s `UNLOCK_FEATURE_NAMES` là DUY NHẤT chỗ ánh xạ sang tên tiếng
+  Việt để hiện UI. `store.ts` (persist) `unlocked: Record<...,boolean>`
+  mặc định CẢ HAI `false`; `announcement.ts` (KHÔNG persist — tín hiệu tạm
+  "vừa mở khoá, cần chào mừng") tách riêng khỏi state persist thật, để
+  reload giữa chừng không làm overlay tự bật lại. `unlockFeature()`
+  idempotent (gọi lại khi đã `true` thì im lặng, không hiện overlay lần
+  2). `FeatureUnlockOverlay.tsx` (mới) — z CAO NHẤT app (`z-[60]`, vượt
+  `DeathNotice`'s `z-50`), lấp lánh LIÊN TỤC (GSAP glow pulse lặp — khác
+  `DeathNotice` chỉ fade-in tĩnh), đóng bằng click HOẶC Space. Trigger hiện
+  tại: hoàn thành nhiệm vụ `first_deer_hunt` mở khoá CẢ HAI tính năng cùng
+  lúc — hardcode tại điểm gọi trong `MapScreen.tsx` (không phải field
+  trong `QuestDef`, vì mới có đúng 1 quest, chưa cần tổng quát hoá).
+  `GameHud.tsx`: nút HUD tương ứng chỉ render khi đã mở khoá — ẩn hẳn,
+  không phải icon khoá xám.
+- **Nhiệm vụ thưởng vật phẩm**: `QuestDef` thêm field tuỳ chọn
+  `rewardItem?: InventoryItem` — `first_deer_hunt` giờ thưởng thêm 1 khẩu
+  `vlr_primevandal` huyền thoại (Cụ Quy cho mượn). `MapScreen.tsx`'s
+  `handleNpcDialogueDone`'s nhánh `"turnIn"` gọi thẳng `addItem()` cạnh
+  `gainExp`/`addCurrency` đã có — không cần cơ chế mới, `InventoryItem` đã
+  luôn cho phép tạo thủ công từ trước (không bắt buộc phải roll ngẫu
+  nhiên).
+- **Bug có sẵn từ trước, KHÔNG liên quan đợt này, phát hiện lúc test Triệu
+  Hồi x10**: `public/weapon-display/pvz_chili.png` bị thiếu file dù
+  `WeaponTypeId "pvz_chili"` đã khai trong `inventory/data.ts` — roll ra
+  đúng loại vũ khí đó thì ảnh lỗi (Next Image trả 400). Chưa sửa (không có
+  file ảnh đúng để thêm) — cần cung cấp asset hoặc bỏ entry này.
+
 ## 1. Kiến trúc module — không thương lượng
 
 - Domain code nằm trong `src/modules/<domain>/`: `world` (bản đồ, di chuyển,
@@ -281,7 +360,11 @@ theo phản hồi thực tế.
   giản, chưa có cơ chế/data thật — xem mục 6), `npc` (identity + dialogue
   NPC, `npc.ts` là lớp Phaser — đặt module riêng dù Phaser-coupled như
   `Monster`, vì NPC là mối quan tâm khác — dẫn dắt cốt truyện, không phải
-  combat), `quest` (persist, trạng thái/tiến trình nhiệm vụ, xem đợt 10).
+  combat), `quest` (persist, trạng thái/tiến trình nhiệm vụ, xem đợt 10),
+  `market` (persist, Chợ Trời — mua/bán/reset/quà ngày, đọc `summon` để
+  roll rarity + `inventory` để trừ/cộng tiền và item, xem đợt 11), `unlocks`
+  (persist cờ mở khoá tính năng + store tạm không-persist cho tín hiệu
+  "vừa mở khoá", xem đợt 11).
   Type + component + data + store của 1
   domain nằm trong thư mục riêng của nó, không import chéo data layer bừa
   giữa các domain — hướng import CHỈ ĐƯỢC 1 CHIỀU khi 1 domain cần đọc domain

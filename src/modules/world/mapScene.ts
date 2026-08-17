@@ -10,6 +10,7 @@ import { rollDrop } from "@/modules/inventory/store";
 import { Npc } from "@/modules/npc/npc";
 import { NPCS } from "@/modules/npc/data";
 import type { NpcId, NpcSpawnConfig } from "@/modules/npc/types";
+import { setNearbyNpc } from "@/modules/npc/interactionHint";
 import { reportQuestProgress } from "@/modules/quest/store";
 
 const DEFAULT_ROOM_SCALE = 1.5; // each room is ~1.5x the viewport by default, so there's real room to pan
@@ -419,6 +420,7 @@ export function createMapScene({
           }
         }
       }
+      setNearbyNpc(nearest?.id ?? null);
       if (nearest && Phaser.Input.Keyboard.JustDown(this.keys.space)) {
         onNpcInteract(nearest.id);
       }

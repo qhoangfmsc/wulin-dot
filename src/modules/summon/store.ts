@@ -7,17 +7,44 @@ import { RARITY_CONFIG, RARITY_IDS } from "./data";
 import type { Rarity } from "./types";
 
 interface SummonState {
-  /** No upgrade mechanic yet — starts at 1 and stays there until a future
-   * feature adds a way to raise it. Higher = better rarity odds, see
-   * `rollRarity`. */
+  /** Higher = better rarity odds, see `rollRarity`. Levels up automatically
+   * via `recordSummonRoll` once `summonExp` reaches `rollsForLevel`. */
   storeLevel: number;
+  /** Rolls accumulated toward the NEXT `storeLevel` — resets (keeping any
+   * remainder) each time a level-up fires. */
+  summonExp: number;
 }
 
 /** The Summon Store's own progression — separate from `character`'s level,
  * persisted the same way. */
 export const useSummonStore = create<SummonState>()(
-  persist(() => ({ storeLevel: 1 }), { name: "wulin-summon" }),
+  persist(() => ({ storeLevel: 1, summonExp: 0 }), { name: "wulin-summon" }),
 );
+
+/** Rolls needed to go from `level` to `level + 1` — plain linear curve
+ * (level×10), a placeholder tuning number, easy to change later since UI
+ * reads it through this function rather than hardcoding the formula. */
+export function rollsForLevel(level: number): number {
+  return level * 10;
+}
+
+/** Called once per successful summon (both `performSummon` and
+ * `performSummonBatch` route through here) — accumulates `summonExp` and
+ * levels up `storeLevel` whenever the threshold is reached, carrying over
+ * any remainder instead of resetting to 0. */
+function recordSummonRoll(count: number) {
+  useSummonStore.setState((s) => {
+    let { storeLevel, summonExp } = s;
+    summonExp += count;
+    let threshold = rollsForLevel(storeLevel);
+    while (summonExp >= threshold) {
+      summonExp -= threshold;
+      storeLevel += 1;
+      threshold = rollsForLevel(storeLevel);
+    }
+    return { storeLevel, summonExp };
+  });
+}
 
 const BASE_WEIGHTS: Record<Rarity, number> = { common: 70, rare: 24, epic: 5, legendary: 1 };
 const MIN_COMMON_WEIGHT = 20;
@@ -88,5 +115,20 @@ export function performSummon(characterLevel: number): InventoryItem | null {
 
   const item: InventoryItem = { id: crypto.randomUUID(), weaponTypeId, level: characterLevel, rarity, statBonus };
   addItem(item);
+  recordSummonRoll(1);
   return item;
+}
+
+/** Rolls `count` times in a row — stops early if summon cards run out, so
+ * the returned array can be shorter than `count`. Used by "Triệu Hồi x10";
+ * `performSummon` already handles the single-roll case (and its own
+ * `recordSummonRoll(1)`), so this only adds the loop, not duplicate logic. */
+export function performSummonBatch(characterLevel: number, count: number): InventoryItem[] {
+  const results: InventoryItem[] = [];
+  for (let i = 0; i < count; i++) {
+    const item = performSummon(characterLevel);
+    if (!item) break;
+    results.push(item);
+  }
+  return results;
 }

@@ -10,17 +10,21 @@ import type { DialogueLine } from "@/modules/world/maps";
 import { useMapProgressStore } from "@/modules/world/mapProgress";
 import { useMapMusic } from "@/modules/world/useMapMusic";
 import { gainExp, getEffectiveStats, syncMaxHpToLiveHud, useCharacterStore } from "@/modules/character/store";
-import { addCurrency, useInventoryStore } from "@/modules/inventory/store";
+import { addCurrency, addItem, useInventoryStore } from "@/modules/inventory/store";
 import { NPCS } from "@/modules/npc/data";
 import type { NpcId } from "@/modules/npc/types";
+import { useNpcInteractionHintStore } from "@/modules/npc/interactionHint";
 import { QUESTS } from "@/modules/quest/data";
 import { completeQuest, getQuestStatus, startQuest } from "@/modules/quest/store";
 import type { QuestId } from "@/modules/quest/types";
+import { unlockFeature } from "@/modules/unlocks/store";
 import { GameHud } from "./GameHud";
 import { TutorialOverlay } from "./TutorialOverlay";
 import { DialogueBox } from "./DialogueBox";
 import { DeathNotice } from "./DeathNotice";
 import { QuestOfferModal } from "./QuestOfferModal";
+import { NpcInteractionHint } from "./NpcInteractionHint";
+import { FeatureUnlockOverlay } from "./FeatureUnlockOverlay";
 import { ExperienceBar } from "./ExperienceBar";
 
 const MapCanvas = dynamic(() => import("@/modules/world/components/MapCanvas").then((m) => m.MapCanvas), { ssr: false });
@@ -59,6 +63,7 @@ export function MapScreen() {
     phase: "intro" | "active" | "turnIn" | "done";
   } | null>(null);
   const [questOffer, setQuestOffer] = useState<{ npcId: NpcId; questId: QuestId } | null>(null);
+  const nearbyNpcId = useNpcInteractionHintStore((s) => s.nearbyNpcId);
   const fadeRef = useRef<HTMLDivElement>(null);
 
   useMapMusic(map.music, currentMapId);
@@ -194,6 +199,15 @@ export function MapScreen() {
       completeQuest(quest.id);
       gainExp(quest.rewardExp);
       addCurrency(quest.rewardCurrency);
+      if (quest.rewardItem) addItem(quest.rewardItem);
+      // Hardcoded to this one quest rather than a generic `QuestDef` field
+      // — there's only a single quest today, and different quests may want
+      // to unlock different things later; easier to see/change right here
+      // than through an extra layer of indirection for a case of one.
+      if (quest.id === "first_deer_hunt") {
+        unlockFeature("summonStore");
+        unlockFeature("market");
+      }
     }
   }
 
@@ -251,7 +265,11 @@ export function MapScreen() {
         <QuestOfferModal quest={QUESTS[questOffer.questId]} onAccept={handleQuestAccept} onDecline={() => setQuestOffer(null)} />
       )}
 
+      <NpcInteractionHint visible={Boolean(nearbyNpcId) && !dialogueQueue && !npcDialogue && !questOffer} />
+
       {deathNotice && <DeathNotice onDismiss={() => setDeathNotice(false)} />}
+
+      <FeatureUnlockOverlay />
 
       <GameHud cells={parsed.cells} position={position} visited={visited} />
       <ExperienceBar />

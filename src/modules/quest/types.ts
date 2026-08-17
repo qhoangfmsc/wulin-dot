@@ -1,4 +1,5 @@
 import type { NpcId } from "@/modules/npc/types";
+import type { InventoryItem } from "@/modules/inventory/types";
 
 /** Literal union, extend as new quests get added. */
 export type QuestId = "first_deer_hunt";
@@ -18,4 +19,8 @@ export interface QuestDef {
   targetCount: number;
   rewardExp: number;
   rewardCurrency: number;
+  /** Optional — most quests are just gold/exp, but some (VD Cụ Quy cho
+   * mượn vũ khí) also grant a specific hand-authored item, not a random
+   * roll. Granted via `addItem()` on turn-in, same as any other item. */
+  rewardItem?: InventoryItem;
 }
