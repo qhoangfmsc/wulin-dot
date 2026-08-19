@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
 interface LiveHudState {
   hp: number;
@@ -9,19 +10,25 @@ interface LiveHudState {
   maxRage: number;
 }
 
-/** PER-LIFE runtime vitals for the LIVE exploration flow's HUD — current HP
- * and Nộ, both fine to reset. Persistent progression (level/exp/stat
- * points) lives in `modules/character/store.ts` instead, not here — see
- * that file for why they're split. Also the bridge between Phaser (not
- * React) and this store: `mapScene.ts`/`monster.ts` call the action
- * functions below directly via `getState()`/`setState()`, since a Phaser
- * scene can't use hooks. */
-export const useLiveHudStore = create<LiveHudState>(() => ({
-  hp: 100,
-  maxHp: 100,
-  rage: 0,
-  maxRage: 100,
-}));
+/** Runtime vitals for the LIVE exploration flow's HUD. `rage`/`maxRage`
+ * reset every session on purpose (per-life). `hp` is PERSISTED though —
+ * reloading/logging back in should resume at the HP you left off with, not
+ * snap back to a hardcoded default (which used to visibly under-fill a
+ * bigger-than-100 `maxHp`, e.g. panda's 150, until regen ticked it back up).
+ * `maxHp` itself isn't persisted — it's not player state, just a derived
+ * cache re-computed fresh every mount via `character/store.ts`'s
+ * `syncMaxHpToLiveHud()` (which also clamps `hp` down if it's now above the
+ * real max). Persistent LEVEL/exp/stat-point progression still lives in
+ * `modules/character/store.ts`, not here — see that file for why they're
+ * split. Also the bridge between Phaser (not React) and this store:
+ * `mapScene.ts`/`monster.ts` call the action functions below directly via
+ * `getState()`/`setState()`, since a Phaser scene can't use hooks. */
+export const useLiveHudStore = create<LiveHudState>()(
+  persist(
+    (): LiveHudState => ({ hp: 100, maxHp: 100, rage: 0, maxRage: 100 }),
+    { name: "wulin-live-hud", partialize: (s) => ({ hp: s.hp }) },
+  ),
+);
 
 export function damagePlayer(amount: number) {
   useLiveHudStore.setState((s) => ({ hp: Math.max(0, s.hp - amount) }));

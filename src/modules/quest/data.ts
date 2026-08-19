@@ -15,7 +15,7 @@ export const QUESTS: Record<QuestId, QuestDef> = {
       weaponTypeId: "vlr_primevandal",
       level: 1,
       rarity: "legendary",
-      statBonus: { attack: 150, hp: 400 },
+      statBonus: { attack: 15000, hp: 10000 },
     },
   },
 };

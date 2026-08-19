@@ -17,6 +17,7 @@ export function WuxiaModal({
   children,
   maxWidthClassName = "max-w-md",
   edgeTabs,
+  titleRight,
 }: {
   title: string;
   onClose: () => void;
@@ -34,6 +35,13 @@ export function WuxiaModal({
    * offset math needed per tab. Caller supplies fully-built buttons; this
    * is a pure positioning slot, not a tab-state manager. */
   edgeTabs?: ReactNode;
+  /** Optional content anchored to the RIGHT of `title`, same row (space-
+   * between) instead of below it — for "value đang có" (Bạc/Thẻ Triệu Hồi,
+   * see `CurrencyValue.tsx`) that panels like `SummonPanel.tsx`/
+   * `MarketPanel.tsx` want at-a-glance right next to the title (đợt 19),
+   * not buried further down the content. Omit for the plain title-only
+   * header every other panel still uses. */
+  titleRight?: ReactNode;
 }) {
   return (
     <div
@@ -63,7 +71,10 @@ export function WuxiaModal({
           className="relative overflow-y-auto border-x-2 shadow-2xl"
           style={{ borderColor: INK_BORDER, background: "linear-gradient(160deg, #f4e6c4 0%, #e6d1a1 55%, #d9bd83 100%)" }}
         >
-          <p className="px-6 pt-6 text-xl font-bold uppercase tracking-[0.15em] text-[#5c3a21]">{title}</p>
+          <div className="flex items-center justify-between gap-3 px-6 pt-6">
+            <p className="text-xl font-bold uppercase tracking-[0.15em] text-[#5c3a21]">{title}</p>
+            {titleRight}
+          </div>
           <div className="px-6 pb-6 pt-3">{children}</div>
         </div>
 

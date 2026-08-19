@@ -18,6 +18,12 @@ export function announceUnlock(feature: UnlockableFeature) {
   useUnlockAnnouncementStore.setState((s) => ({ pending: [...s.pending, feature] }));
 }
 
-export function clearAnnouncement() {
-  useUnlockAnnouncementStore.setState({ pending: [] });
+/** Advances past `pending[0]` — used by `FeatureUnlockOverlay.tsx` when the
+ * player dismisses the CURRENT feature's guide card, so unlocking SEVERAL
+ * features at once (only `bag` triggers today via `first_deer_hunt`, see
+ * `MapScreen.tsx` — but nothing stops a future quest from calling
+ * `unlockFeature` more than once) would tour them one at a time instead of
+ * dumping every name into a single card. */
+export function dismissCurrentAnnouncement() {
+  useUnlockAnnouncementStore.setState((s) => ({ pending: s.pending.slice(1) }));
 }

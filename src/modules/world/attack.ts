@@ -4,7 +4,7 @@ import { spawnDamageText } from "./damageText";
 const FLIGHT_DURATION_MS = 350;
 const SPIN_RADIANS = Math.PI * 3; // 1.5 full spins while in flight
 const IMPACT_BURST_MS = 200;
-const PROJECTILE_DISPLAY_SIZE = 32;
+const PROJECTILE_DISPLAY_SIZE = 65;
 const IMPACT_BURST_RADIUS = 18;
 
 export interface AttackConfig {

@@ -19,7 +19,7 @@ export const WEAPON_TYPES: Record<WeaponTypeId, WeaponTypeConfig> = {
   pvz_sunflower: { id: "pvz_sunflower", name: "Sunflower", spriteSrc: "/weapon-display/pvz_sunflower.png" },
   pvz_zombie: { id: "pvz_zombie", name: "Zombie", spriteSrc: "/weapon-display/pvz_zombie.png" },
   toystory_buzzlightyear  : { id: "toystory_buzzlightyear", name: "Buzz Lightyear", spriteSrc: "/weapon-display/toystory_buzzlightyear.png" },
-  vlr_primevandal: { id: "vlr_primevandal", name: "Dép Lê", spriteSrc: "/weapon-display/vlr_primevandal.png" },
+  vlr_primevandal: { id: "vlr_primevandal", name: "Prime Vandal", spriteSrc: "/weapon-display/vlr_primevandal.png" },
 };
 
 export const WEAPON_TYPE_IDS = Object.keys(WEAPON_TYPES) as WeaponTypeId[];

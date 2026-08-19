@@ -7,8 +7,15 @@ import type { QuestId } from "@/modules/quest/types";
 /** Sits right below `PlayerStatusPanel` (via `GameHud`'s left-column
  * wrapper) so the player can see quest progress at a glance without opening
  * anything. Only lists quests currently `"active"`/`"ready_to_turn_in"` —
- * renders nothing at all once there's nothing to track (no empty box). */
-export function QuestTracker() {
+ * renders nothing at all once there's nothing to track (no empty box).
+ *
+ * Each row is clickable and calls `onSelectQuest` to reopen the quest's
+ * full detail — the actual modal (`QuestDetailModal`) is owned/rendered by
+ * `GameHud`, NOT here: this component lives inside a `fixed left-4 top-4`
+ * wrapper, which would break a `WuxiaModal`'s `absolute inset-0` full-
+ * viewport sizing if nested this deep (see `QuestDetailModal.tsx`'s doc
+ * comment). The hover card stays for a quick glance without a click. */
+export function QuestTracker({ onSelectQuest }: { onSelectQuest: (id: QuestId) => void }) {
   const statusByQuest = useQuestStore((s) => s.statusByQuest);
   const progressByQuest = useQuestStore((s) => s.progressByQuest);
 
@@ -30,7 +37,12 @@ export function QuestTracker() {
           const status = statusByQuest[id];
           const progress = progressByQuest[id] ?? 0;
           return (
-            <div key={id} className="group/quest pointer-events-auto relative flex items-center justify-between gap-2">
+            <button
+              key={id}
+              type="button"
+              onClick={() => onSelectQuest(id)}
+              className="group/quest pointer-events-auto relative flex items-center justify-between gap-2 text-left"
+            >
               <span className="truncate text-[13px] text-[#e6d3ad]">{quest.title}</span>
               <span className="shrink-0 text-[12px] font-semibold tabular-nums text-[#f2c66d]">
                 {status === "ready_to_turn_in" ? "Sẵn sàng trả!" : `${progress}/${quest.targetCount}`}
@@ -49,7 +61,7 @@ export function QuestTracker() {
                 <p className="text-[13px] font-bold text-[#3f2a16]">{quest.title}</p>
                 <p className="mt-1 text-[12px] leading-snug text-[#5c3a21]">{quest.objectiveLabel}</p>
               </div>
-            </div>
+            </button>
           );
         })}
       </div>

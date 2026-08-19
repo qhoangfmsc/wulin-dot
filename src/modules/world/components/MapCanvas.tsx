@@ -2,7 +2,7 @@
 
 import Phaser from "phaser";
 import { useEffect, useRef } from "react";
-import { createMapScene, type MapEdge, type ObstacleConfig, type WallConfig } from "../mapScene";
+import { createMapScene, MAP_SCENE_KEY, type MapEdge, type MapSceneInstance, type ObstacleConfig, type WallConfig } from "../mapScene";
 import type { MonsterSpawnConfig } from "../monster";
 import type { NpcId, NpcSpawnConfig } from "@/modules/npc/types";
 
@@ -115,8 +115,28 @@ export function MapCanvas({
       game.destroy(true);
       gameRef.current = null;
     };
+    // `spriteUrl`/`weaponSpriteSrc`/`playerAttackDamage` are DELIBERATELY
+    // excluded — see the effect below. Everything else here is genuinely
+    // tied to WHICH ROOM this is (layout/walls/monsters/entry point), so a
+    // change legitimately means "throw the old scene away and build the
+    // room fresh."
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [floorSrc, spriteUrl, weaponSpriteSrc, playerAttackDamage, walls, wallSrc, tint, obstacles, monsters, npcs, roomScale, spawnAt]);
+  }, [floorSrc, walls, wallSrc, tint, obstacles, monsters, npcs, roomScale, spawnAt]);
+
+  // Character/weapon/attack changes (picking a different character, equipping
+  // a different weapon) used to be lumped into the effect above — which
+  // rebuilt the ENTIRE Phaser scene (`game.destroy(true)` + `new
+  // Phaser.Game()`) just because a cosmetic/stat prop changed, resetting the
+  // whole room: monsters respawned, player snapped back to the entry point.
+  // These 3 are cosmetic/stat values, not room identity, so they update the
+  // ALREADY-RUNNING scene in place via `updateLoadout()` (see
+  // `mapScene.ts`) instead of tearing anything down. No-ops harmlessly if
+  // the scene hasn't finished `create()` yet (its own first frame already
+  // used these same fresh values from the closure above).
+  useEffect(() => {
+    const scene = gameRef.current?.scene.getScene(MAP_SCENE_KEY) as MapSceneInstance | undefined;
+    scene?.updateLoadout(spriteUrl, weaponSpriteSrc, playerAttackDamage);
+  }, [spriteUrl, weaponSpriteSrc, playerAttackDamage]);
 
   return <div ref={containerRef} className="absolute inset-0" />;
 }

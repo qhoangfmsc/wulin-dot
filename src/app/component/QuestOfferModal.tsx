@@ -2,6 +2,7 @@
 
 import type { QuestDef } from "@/modules/quest/types";
 import { WuxiaModal } from "./WuxiaModal";
+import { QuestRewardPreview } from "./QuestRewardPreview";
 
 /** Confirm-or-decline prompt shown after an NPC's intro dialogue finishes —
  * see `MapScreen.tsx`'s `handleNpcDialogueDone`. Declining just closes it;
@@ -20,6 +21,7 @@ export function QuestOfferModal({
     <WuxiaModal title="Nhiệm Vụ Mới" onClose={onDecline}>
       <p className="text-[20px] font-bold text-[#3f2a16]">{quest.title}</p>
       <p className="mt-2 text-[16px] text-[#5c3a21]">{quest.objectiveLabel}</p>
+      <QuestRewardPreview quest={quest} />
 
       <div className="mt-5 flex gap-3">
         <button

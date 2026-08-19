@@ -204,9 +204,10 @@ export function MapScreen() {
       // — there's only a single quest today, and different quests may want
       // to unlock different things later; easier to see/change right here
       // than through an extra layer of indirection for a case of one.
+      // Tiệm Triệu Hồi/Chợ Trời deliberately DON'T unlock here — user wants
+      // those saved for a later trigger (đợt 15), only Túi Đồ unlocks now.
       if (quest.id === "first_deer_hunt") {
-        unlockFeature("summonStore");
-        unlockFeature("market");
+        unlockFeature("bag");
       }
     }
   }

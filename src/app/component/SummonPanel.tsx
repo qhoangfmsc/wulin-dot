@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import Image from "next/image";
-import { Percent } from "lucide-react";
+import { Percent, Plus } from "lucide-react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { useCharacterStore } from "@/modules/character/store";
@@ -14,6 +14,8 @@ import type { InventoryItem } from "@/modules/inventory/types";
 import { WuxiaModal } from "./WuxiaModal";
 import { WuxiaTooltip } from "./WuxiaTooltip";
 import { SummonRatesModal } from "./SummonRatesModal";
+import { CurrencyValue } from "./CurrencyValue";
+import { BuySummonCardsModal } from "./BuySummonCardsModal";
 
 gsap.registerPlugin(useGSAP);
 
@@ -50,8 +52,12 @@ function BatchResultSlot({ item, tooltipAlign }: { item: InventoryItem; tooltipA
  * button. "Xem Tỉ Lệ" opens a full odds table (`SummonRatesModal`) instead
  * of an inline expand section, driven by `getRarityPercentages` — the exact
  * same function `rollRarity` itself uses, so the numbers can never drift
- * from reality. */
+ * from reality. Bạc/Thẻ Triệu Hồi hiện ở `WuxiaModal`'s `titleRight` (đợt
+ * 19, space-between với tiêu đề) thay vì nằm giữa nội dung — nút "+" xanh
+ * lá cạnh số thẻ mở `BuySummonCardsModal` (modal chồng modal) để mua thêm
+ * ngay tại đây, không cần sang Chợ Trời nữa. */
 export function SummonPanel({ onClose }: { onClose: () => void }) {
+  const currency = useInventoryStore((s) => s.currency);
   const summonCards = useInventoryStore((s) => s.summonCards);
   const storeLevel = useSummonStore((s) => s.storeLevel);
   const summonExp = useSummonStore((s) => s.summonExp);
@@ -60,6 +66,7 @@ export function SummonPanel({ onClose }: { onClose: () => void }) {
   const [batchResult, setBatchResult] = useState<InventoryItem[] | null>(null);
   const [rolling, setRolling] = useState(false);
   const [showRates, setShowRates] = useState(false);
+  const [showBuyCards, setShowBuyCards] = useState(false);
   const resultRef = useRef<HTMLDivElement>(null);
   const batchRef = useRef<HTMLDivElement>(null);
   const iconRef = useRef<HTMLDivElement>(null);
@@ -109,7 +116,28 @@ export function SummonPanel({ onClose }: { onClose: () => void }) {
   const rollsNeeded = rollsForLevel(storeLevel);
 
   return (
-    <WuxiaModal title="Tiệm Triệu Hồi" onClose={onClose}>
+    <WuxiaModal
+      title="Tiệm Triệu Hồi"
+      onClose={onClose}
+      titleRight={
+        <div className="flex items-center gap-3 text-sm font-bold text-[#3f2a16]">
+          <CurrencyValue amount={currency} iconSrc="/icon/coins.png" size={18} />
+          <div className="flex items-center gap-1">
+            <CurrencyValue amount={summonCards} iconSrc="/icon/summon_card.png" size={18} />
+            <button
+              type="button"
+              aria-label="Mua thêm Thẻ Triệu Hồi"
+              onClick={() => setShowBuyCards(true)}
+              className="group relative flex h-5 w-5 items-center justify-center rounded-full shadow hover:z-30"
+              style={{ background: "#22c55e", color: "#fff" }}
+            >
+              <WuxiaTooltip label="Mua thêm Thẻ Triệu Hồi" placement="bottom" align="end" />
+              <Plus className="h-3 w-3" strokeWidth={3} />
+            </button>
+          </div>
+        </div>
+      }
+    >
       <div className="relative mx-auto flex h-32 w-32 items-center justify-center">
         {rolling && (
           <div
@@ -146,10 +174,6 @@ export function SummonPanel({ onClose }: { onClose: () => void }) {
           {summonExp}/{rollsNeeded} lượt quay tới Cấp {storeLevel + 1}
         </p>
       </div>
-
-      <p className="mt-2 text-center text-base text-[#3f2a16]">
-        Thẻ Triệu Hồi: <span className="font-bold">{summonCards}</span>
-      </p>
 
       <div className="mt-3 flex gap-2">
         <button
@@ -207,6 +231,7 @@ export function SummonPanel({ onClose }: { onClose: () => void }) {
       )}
 
       {showRates && <SummonRatesModal onClose={() => setShowRates(false)} />}
+      {showBuyCards && <BuySummonCardsModal onClose={() => setShowBuyCards(false)} />}
     </WuxiaModal>
   );
 }

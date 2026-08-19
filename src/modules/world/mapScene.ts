@@ -49,6 +49,11 @@ const ZOOM_LERP_SPEED = 4;
 
 export type MapEdge = "up" | "down" | "left" | "right";
 
+/** Shared with `MapCanvas.tsx` so it can look the running scene up via
+ * `game.scene.getScene(MAP_SCENE_KEY)` (to call `updateLoadout()`) without
+ * duplicating this string as a separate magic constant. */
+export const MAP_SCENE_KEY = "map-scene";
+
 /** Which edges are blocked for a given room — `true` = wall (rendered with
  * `wallSrc`, movement clamps there, player gets stuck, no transition). An
  * edge missing from this record (or `false`) is OPEN by default: walking
@@ -189,15 +194,39 @@ export function createMapScene({
     private lastRageDecayTickAt = -Infinity;
     private lastHpRegenTickAt = -Infinity;
     private invulnerableUntil = 0;
+    // Mutable — everything else in this class is set up once from the
+    // closure params above and never changes without a full scene rebuild,
+    // but these 3 can change LIVE (via `updateLoadout()`, see below) when
+    // the player switches character/weapon mid-room, without tearing the
+    // room down. `currentSpriteUrl`/`currentWeaponSpriteSrc` track what's
+    // CURRENTLY loaded so a redundant `updateLoadout()` call (props changed
+    // for an unrelated reason) doesn't reload/re-swap textures for nothing.
+    private currentSpriteUrl = spriteUrl;
+    private currentWeaponSpriteSrc = weaponSpriteSrc;
+    private currentAttackDamage = playerAttackDamage;
+    private currentWeaponTextureKey: string | null = null;
 
     constructor() {
-      super("map-scene");
+      super(MAP_SCENE_KEY);
+    }
+
+    /** Keyed by the actual image src (not a fixed "room-player"/"weapon"
+     * string) so switching character/weapon back and forth reuses an
+     * already-loaded texture instead of re-requesting it every time, and so
+     * `updateLoadout()` can load a NEW one without evicting the old key
+     * something else might still reference mid-load. */
+    private playerTextureKey(src: string): string {
+      return `player:${src}`;
+    }
+
+    private weaponTextureKey(src: string): string {
+      return `weapon:${src}`;
     }
 
     preload() {
       this.load.image("room-floor", optimizedSpriteUrl(floorSrc, 640));
-      this.load.image("room-player", optimizedSpriteUrl(spriteUrl));
-      this.load.image("weapon", optimizedSpriteUrl(weaponSpriteSrc, 128));
+      this.load.image(this.playerTextureKey(spriteUrl), optimizedSpriteUrl(spriteUrl));
+      this.load.image(this.weaponTextureKey(weaponSpriteSrc), optimizedSpriteUrl(weaponSpriteSrc, 128));
       if (Object.values(walls).some(Boolean)) this.load.image("room-wall", optimizedSpriteUrl(wallSrc, WALL_THICKNESS));
       obstacles.forEach((o, i) => {
         if (o.spriteSrc) this.load.image(`obstacle-${i}`, optimizedSpriteUrl(o.spriteSrc));
@@ -287,10 +316,11 @@ export function createMapScene({
       else if (spawnAt === "up") startY = this.playMinY + SPAWN_OFFSET;
       else if (spawnAt === "down") startY = this.playMaxY - SPAWN_OFFSET;
 
+      const initialPlayerKey = this.playerTextureKey(spriteUrl);
       this.playerActor = new Actor(this, {
         x: startX,
         y: startY,
-        textureKey: this.textures.exists("room-player") ? "room-player" : null,
+        textureKey: this.textures.exists(initialPlayerKey) ? initialPlayerKey : null,
         displaySize: PLAYER_DISPLAY_WIDTH,
         fallbackColor: 0xf59e0b,
         depth: 10,
@@ -313,6 +343,54 @@ export function createMapScene({
         rightArrow: "RIGHT",
         space: "SPACE",
       }) as typeof this.keys;
+
+      const initialWeaponKey = this.weaponTextureKey(weaponSpriteSrc);
+      this.currentWeaponTextureKey = this.textures.exists(initialWeaponKey) ? initialWeaponKey : null;
+    }
+
+    /** Live character/weapon/attack update — called by `MapCanvas.tsx`
+     * whenever `spriteUrl`/`weaponSpriteSrc`/`playerAttackDamage` change
+     * (equip a different weapon, switch character) WITHOUT tearing down and
+     * rebuilding this scene (that used to reset the whole room — monsters
+     * respawned, player snapped back to the entry point — just from a
+     * cosmetic/stat change, see `MapCanvas.tsx`'s doc comment). No-op
+     * before `create()` has run (`playerActor` not set yet) — that first
+     * frame's `preload()`/`create()` already used the fresh values from the
+     * closure, nothing to update. */
+    updateLoadout(newSpriteUrl: string, newWeaponSpriteSrc: string, newAttackDamage: number) {
+      this.currentAttackDamage = newAttackDamage;
+      if (!this.playerActor) return;
+
+      if (newSpriteUrl !== this.currentSpriteUrl) {
+        this.currentSpriteUrl = newSpriteUrl;
+        const key = this.playerTextureKey(newSpriteUrl);
+        if (this.textures.exists(key)) {
+          this.playerActor.setTexture(key);
+        } else {
+          this.load.image(key, optimizedSpriteUrl(newSpriteUrl));
+          this.load.once(`filecomplete-image-${key}`, () => this.playerActor.setTexture(key));
+          this.load.start(); // loader only auto-starts once, at boot — must kick it manually for anything queued after that
+        }
+      }
+
+      if (newWeaponSpriteSrc !== this.currentWeaponSpriteSrc) {
+        this.currentWeaponSpriteSrc = newWeaponSpriteSrc;
+        const key = this.weaponTextureKey(newWeaponSpriteSrc);
+        if (this.textures.exists(key)) {
+          this.currentWeaponTextureKey = key;
+        } else {
+          // Thrown fresh on the next `fireAttack()` call, not a persistent
+          // sprite — just make sure the key resolves once loading finishes.
+          // Falls back to `fireAttack`'s plain-color projectile in the
+          // meantime rather than blocking attacks on the load.
+          this.currentWeaponTextureKey = null;
+          this.load.image(key, optimizedSpriteUrl(newWeaponSpriteSrc, 128));
+          this.load.once(`filecomplete-image-${key}`, () => {
+            this.currentWeaponTextureKey = key;
+          });
+          this.load.start();
+        }
+      }
     }
 
     private isBlockedByObstacle(x: number, y: number): boolean {
@@ -359,9 +437,9 @@ export function createMapScene({
           fromY: this.playerActor.y,
           toX: target.x,
           toY: target.y,
-          weaponTextureKey: this.textures.exists("weapon") ? "weapon" : null,
+          weaponTextureKey: this.currentWeaponTextureKey,
           fallbackColor: 0xf2c66d,
-          damage: playerAttackDamage,
+          damage: this.currentAttackDamage,
           onLand: (dmg) => {
             if (!target.isAlive) return; // died to something else, or room changed, while the throw was in flight
             const killed = target.takeDamage(this, dmg);
@@ -497,3 +575,8 @@ export function createMapScene({
     }
   };
 }
+
+/** The scene class's instance type — lets `MapCanvas.tsx` type the result
+ * of `game.scene.getScene(MAP_SCENE_KEY)` well enough to call
+ * `updateLoadout()` on it without an `any` cast. */
+export type MapSceneInstance = InstanceType<ReturnType<typeof createMapScene>>;

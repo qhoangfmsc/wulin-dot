@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import type { GridCell } from "@/modules/world/mapGrid";
+import type { QuestId } from "@/modules/quest/types";
 import type { PanelId } from "./hubPanelId";
 import { PlayerStatusPanel } from "./PlayerStatusPanel";
 import { MonsterTargetHud } from "./MonsterTargetHud";
 import { QuestTracker } from "./QuestTracker";
+import { QuestDetailModal } from "./QuestDetailModal";
 import { ShelfNav } from "./ShelfNav";
 import { SummonQuickButton } from "./SummonQuickButton";
 import { MarketQuickButton } from "./MarketQuickButton";
@@ -40,8 +42,8 @@ export function GameHud({
   visited: Set<string>;
 }) {
   const [activePanel, setActivePanel] = useState<PanelId | null>(null);
-  const summonStoreUnlocked = useUnlockStore((s) => s.unlocked.summonStore);
-  const marketUnlocked = useUnlockStore((s) => s.unlocked.market);
+  const [questDetailId, setQuestDetailId] = useState<QuestId | null>(null);
+  const unlocked = useUnlockStore((s) => s.unlocked);
 
   function close() {
     setActivePanel(null);
@@ -54,19 +56,20 @@ export function GameHud({
           <PlayerStatusPanel onOpenCharacter={() => setActivePanel("character")} />
           <MonsterTargetHud />
         </div>
-        <QuestTracker />
+        <QuestTracker onSelectQuest={setQuestDetailId} />
       </div>
-      <ShelfNav onNavigate={setActivePanel} />
+      <ShelfNav onNavigate={setActivePanel} unlocked={unlocked} />
       <div className="pointer-events-none fixed right-4 top-4 z-20 flex items-start gap-2">
         {/* Quick-access icons (Triệu Hồi, Chợ Trời — room for more later,
          * VD sự kiện/event) sit LEFT of the minimap, top-aligned with it.
          * `flex-wrap` on this constrained-width row means extra icons drop
          * to a 2nd row below instead of pushing the minimap sideways. Both
-         * start hidden — see `modules/unlocks/` — until unlocked via the
-         * first quest. */}
+         * always render — see `modules/unlocks/` — but show disabled +
+         * "chưa mở" tooltip until unlocked via the first quest, rather than
+         * disappearing (a vanished button reads as removed, not "not yet"). */}
         <div className="flex max-w-40 flex-wrap items-start justify-end gap-2">
-          {summonStoreUnlocked && <SummonQuickButton onOpen={() => setActivePanel("summon")} />}
-          {marketUnlocked && <MarketQuickButton onOpen={() => setActivePanel("market")} />}
+          <SummonQuickButton onOpen={() => setActivePanel("summon")} unlocked={unlocked.summonStore} />
+          <MarketQuickButton onOpen={() => setActivePanel("market")} unlocked={unlocked.market} />
         </div>
         <GridMinimap cells={cells} position={position} visited={visited} />
       </div>
@@ -78,6 +81,7 @@ export function GameHud({
       {activePanel === "pet" && <PetPanel onClose={close} />}
       {activePanel === "mount" && <MountPanel onClose={close} />}
       {activePanel === "market" && <MarketPanel onClose={close} />}
+      {questDetailId && <QuestDetailModal questId={questDetailId} onClose={() => setQuestDetailId(null)} />}
     </>
   );
 }

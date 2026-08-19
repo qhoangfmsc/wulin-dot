@@ -1,9 +1,9 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { addItem, spendSummonCard } from "@/modules/inventory/store";
+import { addItem, addSummonCard, spendCurrency, spendSummonCard } from "@/modules/inventory/store";
 import { WEAPON_TYPE_IDS } from "@/modules/inventory/data";
 import type { InventoryItem } from "@/modules/inventory/types";
-import { RARITY_CONFIG, RARITY_IDS } from "./data";
+import { RARITY_CONFIG, RARITY_IDS, SUMMON_CARD_BUY_PRICE } from "./data";
 import type { Rarity } from "./types";
 
 interface SummonState {
@@ -131,4 +131,20 @@ export function performSummonBatch(characterLevel: number, count: number): Inven
     results.push(item);
   }
   return results;
+}
+
+/** Buys `count` Thẻ Triệu Hồi at once for `count * SUMMON_CARD_BUY_PRICE`
+ * Bạc — checks the TOTAL cost upfront (`spendCurrency`'s own guard) rather
+ * than looping `count` single-card purchases, so a run that can't afford
+ * the full amount fails atomically instead of partially succeeding.
+ * Powers `BuySummonCardsModal.tsx`'s quantity-picker, called from
+ * `SummonPanel.tsx`'s "+" button — moved here from
+ * `modules/market/store.ts`'s old single-card `buySummonCard()` at đợt 19
+ * (Chợ Trời no longer buys cards; that action lives entirely in the Summon
+ * Store's own UI now). */
+export function buySummonCards(count: number): boolean {
+  if (count <= 0) return false;
+  if (!spendCurrency(count * SUMMON_CARD_BUY_PRICE)) return false;
+  addSummonCard(count);
+  return true;
 }

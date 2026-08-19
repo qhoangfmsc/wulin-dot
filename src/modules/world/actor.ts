@@ -40,8 +40,9 @@ export class Actor {
   readonly image: Phaser.GameObjects.Image | null;
   private readonly fallbackBody: Phaser.GameObjects.Container | null;
   private readonly shadow: Phaser.GameObjects.Ellipse;
-  private readonly baseScaleX: number;
-  private readonly baseScaleY: number;
+  private readonly displaySize: number;
+  private baseScaleX: number;
+  private baseScaleY: number;
   private readonly hopHeight: number;
   private facing = 0;
   private hopPhase: number;
@@ -61,6 +62,7 @@ export class Actor {
       0x000000,
       0.35,
     );
+    this.displaySize = opts.displaySize;
     this.hopHeight = opts.displaySize * (opts.hopHeightRatio ?? 0.12);
     this.hopPhase = Math.random() * Math.PI; // desync actors' bounce cycles
 
@@ -127,6 +129,24 @@ export class Actor {
     }
     this.shadow.setScale(1 - this.hopValue * 0.3);
     this.shadow.setAlpha(0.35 * (1 - this.hopValue * 0.5));
+  }
+
+  /** Swaps the actor's art WITHOUT rebuilding it — used when the player
+   * changes character/weapon mid-room (see `mapScene.ts`'s
+   * `updateLoadout()`) so switching outfits doesn't force a whole new
+   * `Actor`/scene. No-op for the shapeless fallback (`this.image === null`,
+   * i.e. no real texture was ever preloaded) — not needed in practice since
+   * every playable character has real art, but kept safe rather than
+   * throwing. Recomputes `baseScaleX`/`baseScaleY` from the NEW texture's
+   * aspect ratio, same as the constructor does, so `update()`'s hop-squash
+   * scaling still measures from the right baseline afterward. */
+  setTexture(key: string) {
+    if (!this.image) return;
+    this.image.setTexture(key);
+    const ratio = this.image.height / this.image.width;
+    this.image.setDisplaySize(this.displaySize, this.displaySize * ratio);
+    this.baseScaleX = this.image.scaleX;
+    this.baseScaleY = this.image.scaleY;
   }
 
   /** Brief white flash (hit feedback) — no-op for the shapeless fallback. */

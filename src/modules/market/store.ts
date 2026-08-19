@@ -5,7 +5,7 @@ import { WEAPON_TYPE_IDS } from "@/modules/inventory/data";
 import { syncMaxHpToLiveHud } from "@/modules/character/store";
 import { rollRarity } from "@/modules/summon/store";
 import { RARITY_CONFIG } from "@/modules/summon/data";
-import { BASE_LISTING_PRICE, BASE_SELL_PRICE, DAILY_FREE_SUMMON_CARDS, RESET_STOCK_COST, STOCK_SIZE, SUMMON_CARD_BUY_PRICE } from "./data";
+import { BASE_LISTING_PRICE, BASE_SELL_PRICE, DAILY_FREE_SUMMON_CARDS, RESET_STOCK_COST, STOCK_SIZE } from "./data";
 import type { MarketListing } from "./types";
 
 interface MarketState {
@@ -81,12 +81,6 @@ export function sellItem(itemId: string): boolean {
   removeItem(itemId);
   addCurrency(price);
   syncMaxHpToLiveHud(); // no-op unless the sold item was equipped
-  return true;
-}
-
-export function buySummonCard(): boolean {
-  if (!spendCurrency(SUMMON_CARD_BUY_PRICE)) return false;
-  addSummonCard(1);
   return true;
 }
 

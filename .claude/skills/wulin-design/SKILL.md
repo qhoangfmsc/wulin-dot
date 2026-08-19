@@ -316,22 +316,64 @@ nhiệm vụ.
   `inventory/store.ts` — trước đây CHỈ có `addItem`, chưa có xoá; tự
   `equipItem(null)` nếu xoá đúng món đang mặc), `buySummonCard()`,
   `claimDailyFreeCards()` (so sánh `"YYYY-MM-DD"` hôm nay, 1 lần/ngày thật).
-- **`modules/unlocks/` (mới) — hệ thống mở khoá tính năng**: `types.ts`
-  chỉ có `UnlockableFeature = "summonStore" | "market"` (value tiếng Anh);
-  `data.ts`'s `UNLOCK_FEATURE_NAMES` là DUY NHẤT chỗ ánh xạ sang tên tiếng
-  Việt để hiện UI. `store.ts` (persist) `unlocked: Record<...,boolean>`
-  mặc định CẢ HAI `false`; `announcement.ts` (KHÔNG persist — tín hiệu tạm
-  "vừa mở khoá, cần chào mừng") tách riêng khỏi state persist thật, để
-  reload giữa chừng không làm overlay tự bật lại. `unlockFeature()`
-  idempotent (gọi lại khi đã `true` thì im lặng, không hiện overlay lần
-  2). `FeatureUnlockOverlay.tsx` (mới) — z CAO NHẤT app (`z-[60]`, vượt
+- **`modules/unlocks/` — hệ thống mở khoá tính năng**: `types.ts`'s
+  `UnlockableFeature` (value tiếng Anh) có 7 giá trị — `"bag"` (mở thật,
+  gia nhập hệ thống ở đợt 14, trước đó luôn mở sẵn) + `"summonStore"`/
+  `"market"`/`"skills"`/`"pet"`/`"mount"`/`"friends"` (khoá "tạm thời" ở
+  giai đoạn này, CHƯA có trigger mở khoá nào gọi tới — `summonStore`/
+  `market` từng unlock CÙNG `bag` ở đợt 14 nhưng đợt 15 tách riêng ra
+  theo yêu cầu user, "để sau" chưa xác định trigger; xem `types.ts` doc
+  comment). `data.ts`'s `UNLOCK_FEATURE_NAMES` là DUY NHẤT chỗ ánh xạ
+  sang tên tiếng Việt để hiện UI; `LOCKED_FEATURE_HINT` là câu tooltip
+  DÙNG CHUNG cho MỌI nút khoá ("Tiếp tục khám phá để mở khoá tính năng
+  này") — đừng tự chế câu riêng cho từng nút. `store.ts` (persist)
+  `unlocked: Record<UnlockableFeature, boolean>` mặc định TẤT CẢ `false`;
+  merge CUSTOM (không dùng shallow-merge mặc định của `persist`) vì
+  `unlocked` là object LỒNG — shallow-merge sẽ thay nguyên object đó bằng
+  bản cũ trong localStorage, làm mất field mới thêm sau này (bug thật đã
+  lường trước khi thêm feature mới, xem `store.ts`). `announcement.ts`
+  (KHÔNG persist) giữ hàng đợi `pending: UnlockableFeature[]` "vừa mở
+  khoá, cần chào mừng" TÁCH RIÊNG khỏi state persist thật, để reload giữa
+  chừng không làm overlay tự bật lại. `unlockFeature()` idempotent (gọi
+  lại khi đã `true` thì im lặng, không đẩy thêm vào hàng đợi). Trigger
+  hiện tại: hoàn thành nhiệm vụ `first_deer_hunt` CHỈ mở khoá `bag` —
+  hardcode tại điểm gọi trong `MapScreen.tsx` (không phải field trong
+  `QuestDef`, vì mới có đúng 1 quest, chưa cần tổng quát hoá).
+- **`FeatureUnlockOverlay.tsx` — mini onboarding tour, không chỉ chào
+  mừng suông (đợt 14)**: chỉ hiện ĐÚNG `pending[0]` (1 tính năng 1 lúc,
+  KHÔNG dồn nhiều tên vào 1 card như trước đợt 14 — cơ chế hỗ trợ hàng
+  đợi nhiều phần tử vẫn còn đó, chỉ hiện tại luôn đúng 1 vì chỉ `bag` có
+  trigger) — dismiss gọi `dismissCurrentAnnouncement()` (`pending.slice(1)`,
+  bỏ đúng phần tử đầu) để đi tiếp tính năng kế, không phải
+  `clearAnnouncement()` (đã bỏ, xoá sạch hàng đợi cùng lúc không còn
+  đúng). Mỗi thẻ: tên + mô tả + `ImageCarousel.tsx` (mới, `app/component/`
+  — mũi tên trái/phải + chấm tròn, DUYỆT THỦ CÔNG không tự chạy, clamp ở
+  2 đầu không lặp vòng; luôn truyền `key={feature}` từ nơi gọi để reset
+  về ảnh đầu khi đổi tính năng). Nội dung carousel lấy từ
+  `modules/unlocks/guides.ts`'s `FEATURE_GUIDES` — file MỚI, DUY NHẤT chỗ
+  chứa tên/mô tả/carousel ảnh cho từng tính năng
+  (`Partial<Record<UnlockableFeature, FeatureGuide>>` — `summonStore`/
+  `market` GIỮ entry dù chưa có trigger, nội dung vẫn đúng bất kể lúc nào
+  trigger được thêm; overlay tự rơi về chỉ hiện tên nếu thiếu entry,
+  không crash). Nút đổi chữ theo hàng đợi còn lại ("Tiếp Theo" nếu còn
+  thẻ sau, "Tiếp Tục" nếu là thẻ cuối). z CAO NHẤT app (`z-[60]`, vượt
   `DeathNotice`'s `z-50`), lấp lánh LIÊN TỤC (GSAP glow pulse lặp — khác
-  `DeathNotice` chỉ fade-in tĩnh), đóng bằng click HOẶC Space. Trigger hiện
-  tại: hoàn thành nhiệm vụ `first_deer_hunt` mở khoá CẢ HAI tính năng cùng
-  lúc — hardcode tại điểm gọi trong `MapScreen.tsx` (không phải field
-  trong `QuestDef`, vì mới có đúng 1 quest, chưa cần tổng quát hoá).
-  `GameHud.tsx`: nút HUD tương ứng chỉ render khi đã mở khoá — ẩn hẳn,
-  không phải icon khoá xám.
+  `DeathNotice` chỉ fade-in tĩnh), đóng bằng click HOẶC Space.
+- **Nút/bubble của tính năng CHƯA mở khoá LUÔN hiện, KHÔNG BAO GIỜ ẩn hẳn
+  (đợt 13 — trước đó `SummonQuickButton`/`MarketQuickButton` bị ẩn hoàn
+  toàn qua `{unlocked && <Button/>}`, đổi lại vì user muốn thấy tính năng
+  "chưa mở" chứ không phải "biến mất")** — mờ đi (`opacity` ~0.5 +
+  `grayscale` icon) + tooltip đổi thành `LOCKED_FEATURE_HINT` khi khoá.
+  **Tuyệt đối KHÔNG dùng attribute `disabled` native của `<button>`** để
+  thể hiện trạng thái khoá — nút `disabled` không nhận `:hover` ở hầu hết
+  trình duyệt, mà tooltip ở đây dựng bằng CSS `group-hover` nên sẽ im
+  luôn, hỏng đúng cái mục đích (hover để biết "chưa mở"). Thay vào đó:
+  giữ nút enabled thật, chỉ `onClick={locked ? undefined : onOpen}` (no-op
+  khi khoá) — xem `SummonQuickButton.tsx`/`MarketQuickButton.tsx`/
+  `ShelfNav.tsx`'s `Bubble` để copy đúng pattern. **Túi Đồ (`bag`) từ đợt
+  14 CŨNG nằm trong hệ thống khoá này** (trước đó là ngoại lệ duy nhất
+  luôn mở) — `ShelfNav.tsx`'s Túi Đồ bubble đổi `feature: null` →
+  `feature: "bag"`.
 - **Nhiệm vụ thưởng vật phẩm**: `QuestDef` thêm field tuỳ chọn
   `rewardItem?: InventoryItem` — `first_deer_hunt` giờ thưởng thêm 1 khẩu
   `vlr_primevandal` huyền thoại (Cụ Quy cho mượn). `MapScreen.tsx`'s
@@ -345,12 +387,301 @@ nhiệm vụ.
   đúng loại vũ khí đó thì ảnh lỗi (Next Image trả 400). Chưa sửa (không có
   file ảnh đúng để thêm) — cần cung cấp asset hoặc bỏ entry này.
 
+**2026-08-17 (đợt 12)**: User tự tay refactor thư mục ảnh nhân vật — không
+phải tôi làm, chỉ review + cập nhật tài liệu theo. `public/character/ingame/`
+(gộp chung) tách thành 3 thư mục theo VAI TRÒ (xem mục 1 bên dưới, phần
+"public/character/"): `player/` (chọn được thật, roster rút từ 7 xuống còn
+3: `dog`/`tiger`/`panda` — `CharacterId` ở `character/types.ts` sửa theo,
+KHÔNG còn `turtle`/`deer`/`dragon`/`crane`), `npc/` (không chọn được —
+`turtle.png` dùng thật cho Cụ Quy, còn lại chưa gắn), `villain/` (dọn từ
+`public/villain/` cũ vào đây, thêm bộ Tứ Tượng "hắc hoá" chưa gắn quái
+nào). Đã review: `tsc`/`lint`/`build` sạch, quét toàn bộ đường dẫn ảnh
+trong `src/` xác nhận không còn tham chiếu đường dẫn cũ (`character/ingame`,
+`/villain/` gốc) và mọi đường dẫn còn lại trỏ đúng file tồn tại (trừ
+`pvz_chili.png` — bug có sẵn từ đợt 11, không liên quan).
+
+**2026-08-17 (đợt 13)**: 5 việc theo yêu cầu user. (1) Tính năng chưa mở giờ
+LUÔN hiện, chỉ mờ đi + tooltip "chưa mở" thay vì biến mất —
+`SummonQuickButton`/`MarketQuickButton` đổi từ `{unlocked && <Button/>}`
+sang props `unlocked` luôn render; `modules/unlocks/types.ts`'s
+`UnlockableFeature` thêm `"skills"`/`"pet"`/`"mount"`/`"friends"` (khoá tạm
+thời, CHƯA có trigger mở — xem mục 1's bullet unlocks); `ShelfNav.tsx`'s
+`Bubble` thêm `locked` prop tương tự. Xem mục 1's 2 bullet về `unlocks/` —
+đặc biệt lưu ý pattern "không dùng `disabled` native" (giết `:hover`) và
+custom `merge` (object lồng). (2) `liveHud.ts`'s `hp` giờ PERSIST
+(`wulin-live-hud`, chỉ `hp` qua `partialize` — `maxHp`/`rage`/`maxRage`
+KHÔNG persist, tính lại mỗi mount) — trước đó `hp` mặc định hardcode `100`
+mỗi lần reload rồi để `healPlayer()` tick dần lên, sai rõ với nhân vật
+`maxHp` khác 100 (VD gấu trúc 150) vì hiện tụt xuống 100 rồi mới hồi lên
+lại, giờ giữ nguyên máu phiên trước (hoặc full nếu chưa từng chơi). (3) Kỹ
+Năng/Thú Cưng/Thú Cưỡi/Bạn Bè giờ khoá "cho giai đoạn này" — cùng cơ chế
+disabled+tooltip như (1), câu tooltip dùng chung `LOCKED_FEATURE_HINT`
+("Tiếp tục khám phá để mở khoá tính năng này") thay vì chữ "chưa mở" cộc.
+Túi Đồ vẫn KHÔNG khoá (quản lý đồ đạc cơ bản). (4) `QuestOfferModal` +
+(5) `QuestTracker` giờ dùng chung `QuestRewardPreview.tsx` (mới,
+`app/component/`) — hiện `+EXP`/Bạc/(nếu có) icon+viền-màu-phẩm-chất vật
+phẩm thưởng, y hệt icon-slot style `BagPanel.tsx`. `QuestTracker` mỗi dòng
+giờ là `<button>` (`onSelectQuest`), mở lại đúng nhiệm vụ qua
+`QuestDetailModal.tsx` (mới) — **modal này CỐ Ý render ở `GameHud.tsx`
+top-level, KHÔNG bên trong `QuestTracker.tsx`**: `QuestTracker` sống trong
+wrapper `fixed left-4 top-4` của `GameHud`, wrapper đó tự thành containing
+block, nên `WuxiaModal`'s `absolute inset-0` nếu lồng bên trong sẽ tính
+theo cái wrapper nhỏ đó chứ không phải toàn màn hình (bug thật gặp khi
+build — screenshot thấy modal bị ghim/cắt góc trên-trái thay vì giữa màn
+hình). Bug class này: bất kỳ modal `WuxiaModal`-based nào cũng phải render
+Ở NGOÀI mọi wrapper `fixed`/`absolute` không phải chính nó — theo đúng
+pattern mọi hub panel khác (`BagPanel`, `SkillsPanel`, ...) đã làm sẵn ở
+`GameHud`'s top-level fragment.
+
+**2026-08-17 (đợt 14)**: Quy ước UI mới + Túi Đồ khoá + mini onboarding
+tour. **Quy ước mới (mục 2)**: hạn chế từ ngữ mang tính value ("Bạc",
+"Thẻ"...) khi có thể thay bằng icon/hình ảnh — áp dụng ngay trong nội
+dung carousel mới bên dưới, CHƯA retrofit lại `BagPanel`/`MarketPanel`/
+`SummonPanel` cũ (đã ghép icon+số+nhãn ngắn từ trước, coi như đạt chuẩn,
+để dành việc sửa lại toàn diện cho lúc có yêu cầu rõ ràng hơn). **Túi Đồ
+giờ cũng khoá từ đầu** — trước đó là tính năng DUY NHẤT không nằm trong
+`modules/unlocks/`, giờ mở CÙNG lúc với Tiệm Triệu Hồi/Chợ Trời qua
+`first_deer_hunt` (`UnlockableFeature` thêm `"bag"`, `ShelfNav.tsx`'s Túi
+Đồ bubble đổi `feature: null` → `feature: "bag"`, `MapScreen.tsx` gọi
+thêm `unlockFeature("bag")`). **Mini onboarding tour** — mỗi lần mở khoá
+không còn chỉ 1 card chào mừng gộp tên: `FeatureUnlockOverlay.tsx` giờ đi
+qua TỪNG tính năng 1 lúc (tên + mô tả + `ImageCarousel.tsx` mới — mũi
+tên/chấm tròn duyệt thủ công), nội dung lấy từ file MỚI
+`modules/unlocks/guides.ts`'s `FEATURE_GUIDES` — **file tổng quát DUY
+NHẤT** mô tả tên/mô tả/carousel ảnh cho từng tính năng, đúng yêu cầu cụ
+thể của user ("làm ra 1 file chức năng tổng quát"). `announcement.ts`
+đổi `clearAnnouncement()` (xoá sạch) → `dismissCurrentAnnouncement()`
+(`pending.slice(1)`, bỏ đúng phần tử đầu) để hỗ trợ tour nhiều tính năng
+liên tiếp. Xem mục 1's 3 bullet về `unlocks/`/`FeatureUnlockOverlay`/nút
+khoá đã viết lại đầy đủ. **Xác minh**: phòng dẫn tới Cụ Quy (`0-1`) là
+phòng test nguy hiểm user tự chỉnh số liệu quái — lái nhân vật đi qua
+bằng Playwright script không đáng tin cậy (rủi ro chết giữa chừng qua
+nhiều turn), nên verify UI lần này dùng 1 debug hook TẠM (query param
+`?debugUnlock=1` gọi thẳng `unlockFeature()`, xoá sạch khỏi code trước
+khi hoàn tất — `git diff` chỉ còn đúng 3 dòng `unlockFeature(...)` thật
+sự cần trong `MapScreen.tsx`) thay vì đi hết đường trong game.
+
+**2026-08-17 (đợt 15)**: Sửa lại đợt 14 theo phản hồi user ngay sau đó —
+hoàn thành `first_deer_hunt` giờ CHỈ mở khoá Túi Đồ (`bag`), KHÔNG còn mở
+kèm Tiệm Triệu Hồi/Chợ Trời nữa ("để sau", user chưa quyết định trigger
+nào cho 2 cái đó). Đổi duy nhất: `MapScreen.tsx`'s turn-in branch bỏ 2
+dòng `unlockFeature("summonStore")`/`unlockFeature("market")`, chỉ còn
+`unlockFeature("bag")`. `summonStore`/`market` giờ ở đúng nhóm "khoá,
+chưa có trigger" với `skills`/`pet`/`mount`/`friends` — nút HUD vẫn hiện,
+chỉ mờ + tooltip, không cần sửa `SummonQuickButton.tsx`/
+`MarketQuickButton.tsx`. `modules/unlocks/guides.ts`'s `FEATURE_GUIDES`
+GIỮ NGUYÊN entry `summonStore`/`market` dù chưa có trigger — nội dung
+tour vẫn đúng, chỉ chờ 1 `unlockFeature(...)` gọi tới trong tương lai là
+tự chạy, không cần viết lại. Xem mục 1's bullet unlocks đã cập nhật.
+**Xác minh lại**: cùng kỹ thuật debug hook tạm (đợt 14) nhưng chỉ gọi
+`unlockFeature("bag")` — xác nhận overlay giờ chỉ hiện ĐÚNG 1 thẻ Túi Đồ
+(nút "Tiếp Tục" ngay từ đầu, không phải "Tiếp Theo"), Tiệm Triệu Hồi vẫn
+mờ + bấm không mở panel sau khi đóng thẻ. Xoá sạch debug hook trước khi
+hoàn tất.
+
+**2026-08-17 (đợt 16)**: 2 bug/tính năng theo phản hồi user. (1) **Bug thật
+đã tìm và sửa — đổi nhân vật/vũ khí làm reset cả phòng** (quái hồi sinh,
+người chơi bật về điểm vào phòng): `MapCanvas.tsx`'s rebuild `useEffect` có
+`spriteUrl`/`weaponSpriteSrc`/`playerAttackDamage` trong dependency array
+CHUNG với các prop THẬT SỰ gắn danh tính phòng, nên đổi nhân vật/vũ khí
+cũng `game.destroy(true)` + `new Phaser.Game()` y hệt đổi phòng. Sửa: tách
+3 giá trị đó sang effect riêng, gọi `mapScene.ts`'s `updateLoadout()` (mới)
+trên scene ĐANG CHẠY — texture key giờ ĐỘNG theo src ảnh
+(`player:${src}`/`weapon:${src}`, không còn cố định `"room-player"`/
+`"weapon"`) để đổi qua lại tái dùng cache; `Actor` (`actor.ts`) thêm
+`setTexture()` để swap ảnh không cần dựng lại actor. Xem mục 6's bullet mới
+về `spriteUrl`/`weaponSpriteSrc`/`playerAttackDamage`. Xác minh bằng
+console.log tạm đếm số lần `new Phaser.Game()` chạy — đổi nhân vật: 0 lần
+rebuild thêm; đổi phòng thật: vẫn rebuild đúng như cũ (không phá behavior
+cũ) — đã xoá log tạm trước khi hoàn tất. (2) **Hover xem vũ khí trong Túi
+Đồ đổi từ `WuxiaTooltip` (1 dòng) sang `ItemDetailCard.tsx` (mới,
+`app/component/`)** — bug thật phát hiện lúc sửa: tooltip cũ
+`item.statBonus.hp ? hpLine : attackLine` chỉ hiện ĐÚNG 1 stat dù
+`statBonus` có thể có CẢ HAI cùng lúc (VD vật phẩm thưởng nhiệm vụ đầu:
+`{ attack: 150, hp: 400 }`) — âm thầm mất thông tin. Card mới hiện đủ
+ảnh+tên+phẩm chất+cấp+MỌI stat có giá trị. `BagPanel.tsx`'s `ItemSlot`
+dùng lại — `cardAlign` theo cột như trước (`WuxiaTooltip`'s hệ), thêm mới
+`cardPlacement` theo HÀNG (hàng đầu `"bottom"` thay vì `"top"` mặc định).
+**Bug thật thứ 2 phát hiện lúc test**: card cao hơn hẳn tooltip cũ nên với
+panel ít đồ (VD vừa mở khoá Túi Đồ, chỉ có 1 món) card tràn ra khỏi biên
+`WuxiaModal`'s `overflow-y-auto` pane bị cắt cứng — dù đổi hướng lên/xuống
+cũng chỉ đổi biên nào bị cắt (trên: đè lên vùng tiêu đề; dưới: cắt ở đáy
+panel), pane quá ngắn không đủ chỗ CHO DÙ hướng nào. Sửa bằng cách dành
+sẵn "flow-height" thật (không phải `absolute`) — `BagPanel.tsx` thêm 1
+spacer `h-52` sau grid, CHỈ khi `items.length <= GRID_COLS` (đúng 1 hàng —
+trường hợp không có hàng dưới để "mượn" chiều cao tự nhiên). Đây là cách
+giải quyết bug class "overflow-y-auto cắt cả overflow-x" (đã ghi ở
+`WuxiaTooltip.tsx`) khi popover cao hơn nhiều so với nội dung xung quanh —
+không dùng portal (giữ đúng convention "pure CSS hover", không JS đo vị
+trí, xem `QuestTracker.tsx`/`WuxiaTooltip.tsx`).
+
+**2026-08-17 (đợt 17)**: Bug thật đã tìm và sửa — màu "Huyền Thoại"
+(`RARITY_CONFIG.legendary.color`, `modules/summon/data.ts`) đổi từ `#f2c66d`
+(vàng nhạt) sang `#b8892f` (vàng đậm hơn) vì màu cũ gần như CÙNG độ sáng
+với nền giấy da `WuxiaModal` dùng khắp app, khiến chữ/badge "Huyền Thoại"
+hoà vào nền, không đọc được ở BẤT KỲ đâu nó xuất hiện
+(`ItemDetailCard.tsx`, `SummonRatesModal.tsx`, `MarketPanel.tsx`,
+`SummonPanel.tsx`). Sửa đúng 1 chỗ (`RARITY_CONFIG`) vì mọi nơi trên đều
+đọc từ đây — không cần sửa từng component riêng lẻ. Màu mới tái dùng
+`#b8892f`, vốn đã dùng làm màu CHỮ trên đúng nền giấy da này ở
+`SkillsPanel.tsx` nên biết chắc đọc được, không phải đoán mới. Xem mục 4's
+bullet mới về kiểm tra tương phản màu chữ với nền thật. Xác minh bằng
+Playwright: seed 1 vật phẩm huyền thoại trong Túi Đồ + hover ra
+`ItemDetailCard` — dòng "Huyền Thoại · Cấp N" rõ nét; mở bảng tỉ lệ Triệu
+Hồi — cột "HUYỀN THOẠI" rõ nét, không còn lẫn vào nền.
+
+**2026-08-19 (đợt 18)**: Áp dụng quy ước đợt 14 (mục 2's bullet "hạn chế từ
+ngữ mang tính value") THẬT SỰ vào Tiệm Triệu Hồi + Chợ Trời, theo yêu cầu
+cụ thể của user — trước đó quy ước này mới chỉ ghi vào tài liệu + dùng
+trong nội dung mới (carousel mở khoá), CHƯA retrofit lại UI cũ. Component
+dùng chung mới `CurrencyValue.tsx` (`app/component/`) — icon + số, thay
+cho việc viết chữ "N Bạc"/"N Thẻ Triệu Hồi"; tổng quát hoá đúng pattern
+`SummonQuickButton.tsx`'s badge số lượng (icon + số, không chữ) vốn đã có
+sẵn, chỉ 2 loại "tiền" thật trong game (Bạc → `coins.png`, Thẻ Triệu Hồi →
+`summon_card.png`) nên nhận thẳng `iconSrc` thay vì dựng enum loại tiền.
+`SummonPanel.tsx`: "Thẻ Triệu Hồi: N" → `CurrencyValue`. `MarketPanel.tsx`:
+số Bạc đầu trang, cả 2 nút "Làm Mới Cửa Hàng"/"Mua Thẻ Triệu Hồi", nút nhận
+quà ngày, giá mua (`ListingCard`) và giá bán (`SellCard`) — TẤT CẢ đổi
+sang `CurrencyValue`. **Chừa lại CÓ CHỦ ĐÍCH, KHÔNG đổi**: "Cấp Tiệm: N"
+(không phải currency, là tier/level — không có icon "cấp độ", nhất quán
+với cách "Cấp N" hiện text ở mọi nơi khác trong app, VD `ItemDetailCard`/
+`CharacterPanel`); nhãn `+N Máu`/`+N Tấn Công` trên vật phẩm (là TÊN CHỈ
+SỐ, không phải "giá trị tiền tệ" — không có icon Máu/Tấn Công trong
+`public/icon/`, tự bịa icon mới khi chưa được yêu cầu là quá tay); các
+tiêu đề mục ("Vật phẩm đang bán", "Vũ khí đang có") — đều là NHÃN MỤC, đọc
+1 lần không lặp lại nhiều số như currency. Xác minh bằng Playwright: cả 2
+panel hiện số kèm icon rõ ràng, không còn chữ "Bạc"/"Thẻ Triệu Hồi" viết
+tay ở bất kỳ đâu hiện GIÁ TRỊ, không lỗi console.
+
+**2026-08-19 (đợt 19)**: 5 việc theo yêu cầu user, sửa lại layout Tiệm
+Triệu Hồi/Chợ Trời/Túi Đồ. (1) **`WuxiaModal` thêm prop `titleRight`** —
+tiêu đề + "value đang có" (`CurrencyValue`) giờ CÙNG hàng, space-between,
+thay vì value nằm rời bên dưới — áp dụng cho cả `SummonPanel.tsx` (Bạc +
+Thẻ Triệu Hồi) và `MarketPanel.tsx` (Bạc, kèm gói quà nếu có — xem (3)).
+(2) **Mua Thẻ Triệu Hồi trực tiếp tại Tiệm Triệu Hồi** — nút "+" xanh lá
+cạnh số thẻ (trong `titleRight`) mở `BuySummonCardsModal.tsx` (mới, MODAL
+CHỒNG MODAL — xem mục 1's bullet mới) — chọn số lượng (+/-, clamp
+`[1,99]`), xem tổng giá, "Xác Nhận Mua" gọi `buySummonCards(count)` (mới,
+`modules/summon/store.ts` — check TOÀN BỘ chi phí trước khi trừ, không
+loop mua từng cái để tránh mua dở dang). `SUMMON_CARD_BUY_PRICE` dời từ
+`modules/market/data.ts` sang `modules/summon/data.ts` (200 Bạc/thẻ, đổi
+từ 100 — hành động giờ thuộc domain `summon`, không phải `market` nữa).
+(3) **Chợ Trời layout lại theo user**: bỏ hẳn nút "Mua Thẻ Triệu Hồi"
+(dời sang (2)); nút "Làm Mới" đổi thành icon `RotateCw` + giá, đặt
+space-between với tiêu đề mục "VẬT PHẨM ĐANG BÁN" (không còn là nút to
+riêng ở trên); quà ngày đổi hẳn từ nút chữ "Nhận N Thẻ Triệu Hồi Miễn
+Phí"/"Đã Nhận Quà Hôm Nay" sang 1 icon quà (`Gift`, lucide — KHÔNG có
+art riêng trong `public/icon/`) lúc lắc + toả sáng liên tục (GSAP,
+`DailyGiftButton` trong `MarketPanel.tsx`) đặt trong `titleRight` NGAY
+TRƯỚC value Bạc, CHỈ hiện khi `!claimed` (đã nhận thì biến mất hẳn, không
+còn trạng thái xám "đã nhận" chiếm chỗ); bấm vào hiện toast "Chúc mừng!
+Nhận [icon]N" (GSAP fade-in rồi tự fade-out sau ~1.6s, KHÔNG dùng
+`position: absolute` — tránh đúng bug class `overflow-y-auto` clip đã gặp
+nhiều lần, toast nằm trong flow bình thường). (4) **`SellCard` (Chợ
+Trời/tab Bán)**: bỏ chữ "(Đang mặc)", đồ ĐANG trang bị hiện badge dấu tick
+(đúng pattern `BagPanel.tsx`'s `ItemSlot`) + nút "Bán" tự `disabled` (mờ
+40%) — bán nhầm vũ khí đang cầm giữa trận không ai muốn, chặn hẳn thay vì
+chỉ cảnh báo bằng chữ. (5) **`BagPanel.tsx`**: bỏ `ResourceStat` (khung
+viền + icon + nhãn + số) cho Bạc/Thẻ Triệu Hồi, thay bằng `CurrencyValue`
+trần — chỉ icon + số, không khung/viền, đúng yêu cầu "đơn giản hoá". Xác
+minh toàn bộ bằng Playwright: mua 3 thẻ qua modal chồng modal (Bạc/thẻ
+đúng số sau khi trừ/cộng), quà ngày hiện toast rồi biến mất + icon quà tự
+ẩn sau khi nhận, `SellCard` khoá đúng item đang mặc, không lỗi console.
+
+**2026-08-19 (đợt 20)**: Bug thật đã tìm và sửa — `BagPanel.tsx`'s
+`ItemDetailCard` hover card vẫn còn bị `overflow-y-auto` của `WuxiaModal`
+cắt mất trong 1 trường hợp đợt 16's fix CHƯA lường tới: item ở HÀNG ĐẦU
+(`cardPlacement="bottom"`) bật card xuống dưới CÁCH 1 KHOẢNG CỐ ĐỊNH tính
+từ hàng đó (~193px, không phụ thuộc còn bao nhiêu hàng phía dưới) —
+spacer `h-52` đợt 16 chỉ render khi `items.length <= GRID_COLS` (đúng 1
+hàng), nên với túi đồ có VÀI hàng nhưng hàng cuối NGẮN (VD 8 món = hàng 1
+đủ 6 + hàng 2 chỉ 2 món) thì hàng 2 chỉ cho thêm ~82px chiều cao thật —
+không đủ 193px cần thiết, card hàng đầu vẫn bị cắt y hệt trước khi sửa.
+Root cause: điều kiện `items.length <= GRID_COLS` coi "có hàng thứ 2" là
+đủ an toàn, nhưng thực ra phải có ĐỦ HÀNG (khoảng 3 hàng ĐẦY, ~24+ món)
+chiều cao tự nhiên mới đủ che — con số đó gần như không bao giờ đạt được
+ở giai đoạn chơi sớm. **Sửa**: bỏ hẳn điều kiện, spacer giờ LUÔN render
+khi `items.length > 0` — đơn giản, đúng trong MỌI trường hợp (1 hàng, vài
+hàng ngắn, nhiều hàng), đổi lại 1 khoảng trắng cố định ~208px cuối lưới
+(vô hại — chấp nhận được để đổi lấy đúng 100%, không cần tính toán "bao
+nhiêu hàng là đủ" theo từng trường hợp). Xác minh bằng Playwright: seed
+8 món (hàng 2 ngắn, đúng ca lỗi) — card hàng đầu giờ hiện đầy đủ ở mọi cột
+(trái/giữa/phải); test thêm 20 món — hover hàng đầu, hàng giữa, món cuối
+đều hiện đúng, không món nào bị cắt.
+
+**2026-08-19 (đợt 21)**: `BagPanel.tsx` đổi từ cuộn (`overflow-y-auto`) vô
+hạn sang PHÂN TRANG — user chủ động yêu cầu đón đầu lúc túi đồ nhiều món
+sau này, không đợi tới lúc thành vấn đề. `PAGE_SIZE = GRID_COLS × GRID_ROWS
+= 12` (đúng 2 hàng đầy) — hằng số mới, không phải số tuỳ ý: giữ đúng 2 hàng
+mỗi trang làm logic `cardPlacement`/spacer (đợt 16/20) ĐƠN GIẢN VÀ ĐÚNG
+TUYỆT ĐỐI thay vì "đủ dùng tuỳ trường hợp" như thiết kế cuộn cũ — hàng đầu
+LUÔN bật xuống (`"bottom"`), hàng còn lại LUÔN bật lên (`"top"`), không
+còn phụ thuộc túi đồ đang có bao nhiêu món. `page` state KHÔNG dùng thẳng
+— luôn CLAMP về `[0, maxPage]` ngay tại chỗ mỗi render (không qua
+`useEffect`) vì tổng số trang có thể tụt bất kỳ lúc nào (bán/mất vật phẩm
+trong khi panel đang mở) — clamp tại chỗ tránh 1 frame hiện trang rỗng/vượt
+quá trước khi effect kịp chạy. Nút trang trước/sau (`ChevronLeft`/
+`ChevronRight`, lucide) + "Trang X/Y" đặt space-between với tiêu đề "Vũ Khí
+Đã Có", CHỈ hiện khi `items.length > PAGE_SIZE` (đúng 1 trang thì không
+cần điều hướng). Spacer `h-52` (đợt 20) giờ đọc theo `pageItems.length`
+thay vì `items.length` toàn bộ — về mặt LUÔN đúng thì không đổi gì (mỗi
+trang luôn có hàng đầu cần spacer), chỉ đổi tên biến cho khớp ngữ nghĩa
+mới. Đã kiểm chứng qua Playwright TRƯỚC KHI làm phân trang rằng hàng
+KHÔNG PHẢI hàng đầu (`"top"` placement) chưa từng bị cắt kể cả cuộn sâu —
+chỉ hàng đầu từng có rủi ro, và phân trang loại bỏ hẳn rủi ro đó thay vì
+chỉ vá thêm 1 lớp nữa. Xác minh: seed 27 món (3 trang: 12/12/3) — đếm đúng
+số item mỗi trang, nút "Trang sau" tự disable ở trang cuối, hover hàng đầu
+VÀ hàng cuối ở CẢ trang đầy lẫn trang ngắn (3 món) đều hiện đủ, không lỗi
+console.
+
+**2026-08-19 (đợt 22)**: User hỏi thẳng "cái `h-52` div đó để làm gì, trông
+như bug vậy" — đúng, phát hiện đang OVER-RESERVE: spacer luôn cố định
+`h-52` (208px) dù trang có 1 hay 2 hàng, trong khi hàng 2 (nếu có) đã TỰ
+cho một phần chiều cao thật rồi. Đo chính xác bằng
+`getBoundingClientRect()` qua Playwright (không đoán): card cần ~193px
+chỗ trống dưới hàng 0 (185px chiều cao card + 8px `mt-2`); hàng 1 (nếu
+tồn tại, ĐẦY hay chỉ có 1-2 món cũng như nhau — track hàng CSS Grid tự
+tính theo Ô CAO NHẤT trong hàng đó, không theo số ô có mặt) tự góp ~68px
+(chiều cao ô 56px + `gap-3` 12px) → chỉ còn thiếu ~101px cần spacer bù,
+KHÔNG PHẢI 208px như đang làm. Sửa: spacer giờ ĐỘNG theo
+`pageItems.length > GRID_COLS` — có hàng 2 thì `h-28` (112px, dư ~11px an
+toàn), không có thì vẫn `h-52` (208px, hàng 0 không có gì bên dưới để
+"mượn" cả). Giảm khoảng trắng nhìn-như-bug ĐÚNG MỘT NỬA cho trường hợp phổ
+biến nhất (trang đầy 12 món). Xác minh lại bằng `getBoundingClientRect()`:
+card hover vẫn nằm gọn trong pane (không vượt biên trên/dưới) ở cả 3 cột
+của hàng 0 trên trang đầy.
+
+**2026-08-19 (đợt 23)**: User bác thẳng cách sửa đợt 22 — "không muốn có
+h-52/h-28 gì hết, nó là cheat chứ không giải quyết vấn đề thật". Đúng —
+đổi hẳn sang giải pháp gốc rễ thay vì vá thêm 1 lớp nữa: xem mục 1's
+bullet mới "Popover cao hơn hẳn 1 dòng phải portal + đo vị trí thật" —
+`ItemDetailCard.tsx` giờ portal ra `document.body` + `position: fixed` đo
+bằng `getBoundingClientRect()` lúc hover, KHÔNG còn dựa vào CSS
+`group-hover` lồng trong `WuxiaModal`'s `overflow-y-auto` nữa, nên KHÔNG
+CẦN spacer nào — xoá sạch `h-52`/`h-28` khỏi `BagPanel.tsx`. Đảo ngược
+quyết định "cố tình không dùng portal" ở đợt 16/20 — quyết định đó đúng
+lúc đó (popover nhỏ, dễ ăn gian bằng cách dành chỗ), nhưng với popover lớn
+như `ItemDetailCard` (~190px) thì "dành chỗ" luôn là đoán (đợt 16/20 đoán
+sai 2 lần) hoặc đúng nhưng lộ ra khoảng trắng vô cớ (đợt 22, user tự phát
+hiện). Nhân tiện tăng `GRID_ROWS` từ 2 lên 3 (`PAGE_SIZE` 12→18, theo đề
+xuất user) — giờ HOÀN TOÀN không ảnh hưởng gì tới việc card có bị cắt hay
+không nữa (khác hẳn trước đây, khi số hàng/trang phải tính toán CẨN THẬN
+để đủ "mượn" chiều cao), chỉ đơn thuần là 1 lựa chọn thẩm mỹ layout.
+`BagPanel` giờ giữ state "đang hover item nào + vị trí" — mỗi `ItemSlot`
+chỉ báo hover qua callback, không tự vẽ popover. Xác minh bằng Playwright
++ `getBoundingClientRect()`: pane content co lại khít nội dung thật (không
+còn đuôi trắng ~208px), card luôn nằm gọn trong viewport (đo trực tiếp,
+không suy đoán) ở MỌI vị trí — hàng đầu/hàng cuối, trang đầy/trang chỉ có
+2 món — không lỗi console.
+
 ## 1. Kiến trúc module — không thương lượng
 
 - Domain code nằm trong `src/modules/<domain>/`: `world` (bản đồ, di chuyển,
   combat, HUD runtime), `character` (nhân vật + tiến trình cấp/điểm chỉ số,
-  persist — roster 7 nhân vật, mỗi nhân vật `baseHp`/`baseAttack` riêng, xem
-  `data.ts`), `inventory` (vũ khí/túi đồ/tiền/thẻ triệu hồi, persist),
+  persist — roster 3 nhân vật CHỌN ĐƯỢC (`dog`/`tiger`/`panda`, rút từ 7
+  xuống đợt 12 — xem "public/character/" bên dưới), mỗi nhân vật
+  `baseHp`/`baseAttack` riêng, xem `data.ts`), `inventory` (vũ khí/túi
+  đồ/tiền/thẻ triệu hồi, persist),
   `summon` (phẩm chất + cơ chế triệu hồi, persist cấp tiệm), `skills` (cây kỹ
   năng thật — node/tier/prerequisite trong `data.ts`, `learnedSkillIds`
   persist trong `store.ts`, chưa có bonus gameplay thật), `friends`
@@ -374,6 +705,22 @@ nhiệm vụ.
   (VD trang bị đồ xong cần đồng bộ máu tối đa) thì gọi từ nơi THỨ BA đang
   dùng cả hai (component, hoặc `mapScene.ts`), không phải từ trong chính 1
   trong 2 store đó.
+- **`public/character/` chia 3 thư mục con theo VAI TRÒ, không phải theo
+  "nhân vật cụ thể nào" (đợt 12)** — thêm ảnh nhân vật MỚI thì phải biết
+  trước nó thuộc loại nào rồi bỏ ĐÚNG chỗ, đừng đổ hết vào 1 thư mục như
+  trước (`ingame/` cũ):
+  - **`player/`** — CHỈ ảnh của nhân vật CHỌN ĐƯỢC thật (có mặt trong
+    `modules/character/data.ts`'s `CHARACTERS`). Thêm 1 nhân vật chọn được
+    mới = thêm ảnh vào đây + 1 dòng `CHARACTERS` + thêm giá trị vào
+    `CharacterId` (`character/types.ts`) — cả 3 việc cùng lúc, thiếu 1 là
+    lệch.
+  - **`npc/`** — ảnh nhân vật KHÔNG chọn được, chỉ đứng yên/nói chuyện qua
+    `modules/npc/`. Gắn 1 NPC mới = thêm ảnh vào đây + 1 entry trong
+    `modules/npc/data.ts`'s `NPCS` (xem mục 6) — ảnh nằm sẵn trong thư mục
+    này KHÔNG có nghĩa nó đã là NPC thật, phải có entry `NPCS` mới tính.
+  - **`villain/`** — art quái/phản diện, dùng qua `MonsterSpawnConfig.spriteSrc`
+    (xem mục 6, Combat). Cùng lý do như `npc/` — ảnh nằm trong thư mục
+    không có nghĩa đã gắn vào quái nào.
 - **6 panel hub (Character/Bag/Skills/Summon/Pet/Mount) dùng CHUNG 1 khung
   modal** — `src/app/component/WuxiaModal.tsx` (backdrop + 2 thanh gỗ + panel
   giấy da + tiêu đề + nút X). Thêm panel mới (cỡ full-screen) thì bọc nội
@@ -395,6 +742,41 @@ nhiệm vụ.
   truyền vào (`ReactNode`) tự quản state tab đang chọn, `WuxiaModal` không
   biết gì về nó. Khác `PanelId`/`onNavigate` (mục điều hướng GIỮA CÁC panel
   khác nhau) — `edgeTabs` là chuyển pane BÊN TRONG CÙNG 1 panel.
+- **`WuxiaModal`'s prop `titleRight`** (mới, đợt 19) — `ReactNode` render
+  cùng hàng với tiêu đề, `justify-between` (tiêu đề trái, `titleRight`
+  phải) thay vì bên dưới. Dùng cho "value đang có" (Bạc/Thẻ Triệu Hồi qua
+  `CurrencyValue.tsx`) mà panel muốn hiện NGAY, ngang hàng tiêu đề, không
+  cần cuộn xuống mới thấy — xem `SummonPanel.tsx`/`MarketPanel.tsx`. Thuần
+  positioning giống `edgeTabs`, không tự quản state gì.
+- **Modal chồng modal (mới, đợt 19)** — `BuySummonCardsModal.tsx` (mở từ
+  nút "+" trong `SummonPanel.tsx`) là modal THỨ HAI mount trong khi modal
+  gốc vẫn còn đó, không phải thay thế nội dung panel gốc. Hoạt động ĐÚNG,
+  KHÔNG cần thêm z-index thủ công, vì `WuxiaModal` luôn dùng cùng 1 `z-40`
+  cố định — 2 instance cùng z-index xếp theo THỨ TỰ DOM, nên cái mount SAU
+  tự nằm trên cùng backdrop riêng của nó đè lên cái mount trước. Dùng
+  pattern này khi 1 hành động phụ (VD mua thêm) cần giữ nguyên panel gốc
+  phía sau thay vì điều hướng rời khỏi nó.
+- **Popover CAO hơn hẳn 1 dòng (VD `ItemDetailCard.tsx`) PHẢI portal +
+  đo vị trí thật, KHÔNG dùng `group-hover` CSS thuần (đảo ngược quyết
+  định đợt 16/20, đợt 23)** — quy ước cũ "hover card thuần CSS, không JS
+  đo vị trí" (`WuxiaTooltip.tsx`, `QuestTracker.tsx`'s card) vẫn ĐÚNG cho
+  popover NHỎ/1 dòng nơi việc "dành sẵn chỗ trống" chỉ tốn vài px không ai
+  để ý. Nhưng với popover LỚN (VD `ItemDetailCard` ~190px cao) nằm trong 1
+  `WuxiaModal`'s `overflow-y-auto` pane, CÁCH DUY NHẤT để không bị cắt
+  bằng CSS thuần là dành sẵn (`reserve`) đủ chỗ trống bên dưới/trên — mà
+  "đủ" phụ thuộc vị trí item đó trong lưới, dẫn tới hoặc đoán sai (bug thật
+  gặp 2 lần, đợt 16/20) hoặc đoán ĐÚNG nhưng luôn dư ra 1 khoảng trắng cố
+  định nhìn như bug (user phản hồi thẳng, đợt 22) — cheat, không phải sửa
+  gốc rễ. **Cách đúng**: `createPortal(..., document.body)` +
+  `getBoundingClientRect()` đo vị trí trigger THẬT lúc hover, tính
+  `position: fixed` (ưu tiên bật xuống, tự lật lên nếu không đủ chỗ dưới,
+  tự kẹp trong viewport theo chiều ngang) — xem
+  `ItemDetailCard.tsx`'s `computeItemDetailCardPosition()`. Portal khiến
+  popover thoát HẲN khỏi `overflow-y-auto` của modal, không cần dành chỗ
+  trống ở BẤT KỲ đâu nữa — `BagPanel.tsx` không còn spacer `h-52`/`h-28`
+  nào cả. `BagPanel` (nơi giữ state "đang hover item nào" + vị trí) là nơi
+  DUY NHẤT render `ItemDetailCard` — mỗi `ItemSlot` chỉ báo hover lên qua
+  callback `onHover(rect)`/`onUnhover()`, không tự vẽ popover của chính nó.
 - **`modules/settings/`** (mới, đợt 6) — `useSettingsStore` persist
   (`{ musicMuted: boolean }`), domain riêng dù hiện chỉ có 1 field vì cài
   đặt kiểu này gần như luôn phình to dần theo thời gian (âm lượng SFX, ngôn
@@ -420,10 +802,14 @@ nhiệm vụ.
   + panel đang mở. `MapScreen` chỉ truyền `cells`/`position`/`visited`
   xuống, không tự biết gì về hub — thêm 1 nút mở panel mới thì sửa
   `GameHud`/`ShelfNav`, không sửa `MapScreen`.
-- `liveHud.ts` (`modules/world/`) CHỈ chứa state runtime-1-mạng (hp hiện tại,
-  Nộ) — tiến trình PERSIST (cấp, exp, điểm chỉ số, vũ khí trang bị) sống ở
-  `character`/`inventory`. Đừng gộp lại 2 loại state này vào 1 store — mất
-  ý nghĩa "cái gì sống qua reload, cái gì reset mỗi mạng".
+- `liveHud.ts` (`modules/world/`) chứa state HUD thời gian thực (hp hiện
+  tại, Nộ) — tiến trình PERSIST thật sự (cấp, exp, điểm chỉ số, vũ khí
+  trang bị) sống ở `character`/`inventory`, đừng gộp lại 2 loại state này
+  vào 1 store. **Ngoại lệ đợt 13**: `hp` (chỉ riêng field này, qua
+  `partialize`) CŨNG persist (`wulin-live-hud`) — user muốn reload/login
+  lại giữ nguyên máu, không tụt về mặc định rồi hồi dần. `maxHp`/`rage`/
+  `maxRage` vẫn KHÔNG persist — `maxHp` tính lại mỗi mount qua
+  `syncMaxHpToLiveHud()`, `rage` vẫn reset mỗi mạng như cũ.
 - Mọi nhân vật hiển thị trong `world` (player, quái) PHẢI dựng qua class
   `Actor` (`modules/world/actor.ts`), không viết lại logic xoay/di chuyển thủ
   công ở chỗ khác — xem mục 3.
@@ -483,6 +869,24 @@ nhiệm vụ.
 - **Game hiện chỉ chơi trên máy tính — không cần tối ưu responsive.** Đừng
   thêm biến thể `sm:`/`md:`/... cho cỡ chữ hay kích thước trừ khi được yêu
   cầu rõ ràng; chọn 1 giá trị cố định phù hợp cho màn hình desktop.
+- **Hạn chế dùng TỪ NGỮ mang tính value (VD "Bạc", "Thẻ", "Thẻ Triệu Hồi")
+  khi có thể thay bằng hình ảnh/icon (đợt 14, retrofit thật vào Tiệm Triệu
+  Hồi/Chợ Trời ở đợt 18)** — mỗi khi cần thể hiện 1 loại tiền/vật phẩm/tài
+  nguyên trong UI, ưu tiên icon thật (`coins.png` cho Bạc, `summon_card.png`
+  cho Thẻ Triệu Hồi, sprite vũ khí thật cho từng món đồ, ...) đứng cạnh SỐ
+  qua component dùng chung `CurrencyValue.tsx` (`app/component/`, đợt 18),
+  thay vì chỉ ghi chữ suông hoặc lặp lại tên loại tiền nhiều lần trong 1
+  đoạn mô tả. Không phải cấm hẳn chữ — nhãn ngắn 1 lần vẫn được (VD
+  `ResourceStat` trong `BagPanel.tsx` đã làm đúng: icon + số + 1 nhãn ngắn
+  "Bạc" bên dưới — KHÔNG cần đổi sang `CurrencyValue`, đã đủ chuẩn) — chỉ
+  tránh việc kể lể bằng từ ngữ khi 1 tấm hình làm được việc đó rõ hơn, đặc
+  biệt trong nội dung MÔ TẢ dài (VD `modules/unlocks/guides.ts`'s carousel
+  — xem mục 1's bullet unlocks) — ưu tiên cho người chơi THẤY hình ảnh minh
+  hoạ tính năng thay vì đọc 1 đoạn văn liệt kê tên các loại tài nguyên. Quy
+  ước này áp dụng cho VALUE thật (tiền/số lượng vật phẩm) — KHÔNG áp dụng
+  cho nhãn tier/chỉ số không có icon tương ứng (VD "Cấp N", "+N Máu"/"+N
+  Tấn Công" — xem đợt 18's changelog, không tự bịa icon mới khi chưa được
+  yêu cầu).
 
 ## 3. Animation — 3 hệ thống, không trộn
 
@@ -572,6 +976,22 @@ hiện đại phẳng chung chung (thanh neon phẳng, HUD kiểu corporate sans
 - Font dùng cho UI wuxia là `font-vl`/`font-bmx`/`font-p22` — xem mục 2 để
   biết ngữ cảnh dùng font nào, đừng tự đổi font stack khi chỉ được yêu cầu
   đổi màu sắc/layout.
+- **Màu chữ/badge PHẢI test độ tương phản với NỀN THẬT SỰ nó sẽ nằm trên —
+  không chỉ "trông đẹp" khi nhìn màu đó một mình (đợt 17)** — bug thật:
+  `RARITY_CONFIG.legendary.color` từng là `#f2c66d` (vàng nhạt), chọn vì
+  "gold = huyền thoại" hợp lý về Ý NGHĨA, nhưng độ sáng gần bằng hệt nền
+  giấy da `WuxiaModal` dùng khắp app (`#f4e6c4`→`#d9bd83`), nên chữ "Huyền
+  Thoại"/số liệu liên quan gần như vô hình mọi nơi nó xuất hiện
+  (`ItemDetailCard.tsx`, `SummonRatesModal.tsx`, `MarketPanel.tsx`,
+  `SummonPanel.tsx`'s kết quả quay). Sửa bằng `#b8892f` — vàng ĐẬM hơn hẳn,
+  đã được dùng làm màu CHỮ trên đúng nền giấy da này ở nơi khác trong app
+  (`SkillsPanel.tsx`) nên biết chắc đọc được. **Quy tắc chung rút ra**:
+  trước khi chốt 1 màu chữ mới (đặc biệt màu "vàng"/"nhạt"/"sáng" — nhóm dễ
+  mắc lỗi này nhất vì bảng màu wuxia của app vốn đã ấm/vàng-nâu), kiểm tra
+  nó có tương phản đủ với nền THẬT nó sẽ nằm trên hay không (đa số component
+  wuxia dùng nền giấy da SÁNG qua `WuxiaModal`, không phải nền tối của HUD)
+  — nếu 2 màu gần nhau về độ sáng dù khác hue, coi như trùng màu về mặt đọc
+  được.
 
 ## 5. Trước khi báo "xong"
 
@@ -656,6 +1076,28 @@ Chờ song song nào khác.
   `Phaser.Game` → chớp màn hình. Bug này đã xảy ra thật và đã sửa — nếu thêm
   field mới vào object truyền cho `MapCanvas`, luôn cân nhắc có cần `useMemo`
   hay không.
+- **`spriteUrl`/`weaponSpriteSrc`/`playerAttackDamage` KHÔNG nằm trong
+  `MapCanvas.tsx`'s rebuild `useEffect`'s dependency array nữa (đợt 16)** —
+  bug thật: đổi nhân vật/vũ khí (`CharacterPanel`) trước đó nằm CÙNG effect
+  với các prop THẬT SỰ gắn với danh tính phòng (`floorSrc`/`walls`/
+  `monsters`/...), nên mỗi lần đổi nhân vật/vũ khí cũng `game.destroy(true)`
+  + `new Phaser.Game()` y hệt đổi phòng — quái hồi sinh, người chơi bật về
+  điểm vào phòng, dù chẳng có gì về PHÒNG thay đổi cả. 3 giá trị này giờ đi
+  qua 1 effect THỨ HAI, gọi `scene.updateLoadout(spriteUrl, weaponSpriteSrc,
+  playerAttackDamage)` (`mapScene.ts`, method mới) trên scene ĐANG CHẠY thay
+  vì rebuild. `updateLoadout()`: đổi `currentAttackDamage` (field, không
+  còn đọc closure `playerAttackDamage` trực tiếp trong `fireAttack()`
+  nữa); nếu sprite/vũ khí đổi thật, load texture mới dưới key ĐỘNG (khoá
+  theo chính src ảnh — `player:${src}`/`weapon:${src}`, KHÔNG còn cố định
+  `"room-player"`/`"weapon"` như trước, để đổi qua lại nhiều lần tái dùng
+  cache thay vì load lại) rồi gọi `Actor`'s `setTexture()` (method mới,
+  swap texture + tính lại `baseScaleX/Y` theo tỉ lệ ảnh mới, không đụng gì
+  khác của actor). `MAP_SCENE_KEY`/`MapSceneInstance` export mới từ
+  `mapScene.ts` để `MapCanvas.tsx` lấy đúng scene instance qua
+  `game.scene.getScene(MAP_SCENE_KEY)` mà có type, không cần `any`. No-op
+  an toàn nếu gọi trước khi `create()` chạy xong (`playerActor` chưa tồn
+  tại) — frame đầu tiên đã tự dùng giá trị mới nhất từ closure rồi, không
+  cần update thêm.
 - **Tutorial chỉ hiện theo `MapModule.showTutorial`**, không unconditional —
   panel to, hiện rõ cả 2 cụm phím WASD và mũi tên (↑↓←→).
 - **HUD góc dưới-trái (`PlayerStatusPanel.tsx`) CHỈ còn avatar + Máu/Nộ, CẢ
